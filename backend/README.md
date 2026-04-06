@@ -20,7 +20,8 @@ npx prisma migrate dev --name init
 ## Changes to the Database
 
 If any change to the database schema is needed, do this:
-1. Edit 'prisma/scheme.prisma' as needed.
+1. Edit 'prisma/schema.prisma' as needed.
 2. Run ```npx prisma migrate dev --name [description]```. Replace \[description\] with a meaningful description of what changed.
 3. Commit and push changes.
+
 Whenever there is an incoming change to the database, do a ```git pull``` followed by a ```npx prisma migrate dev``` to synchronize the schema changes.

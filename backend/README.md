@@ -17,6 +17,9 @@ Synchronize Prisma schema with local PostgreSQL database (for initialization onl
 npx prisma migrate dev --name init
 ```
 
+Add initial records to the database:
+npx prisma db seed
+
 ## Changes to the Database
 
 If any change to the database schema is needed, do this:

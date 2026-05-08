@@ -13,13 +13,12 @@ import { errorHandler } from "./middleware/errorHandler.js";
 const app = express();
 const PORT = parseInt(process.env.PORT ?? "3000", 10);
 
-// ─── Middleware global ───
+// Más adelante en producción es necesario modificar esta línea para que cors() no permita cualquier
+// request de cualquier origen, sino solo las estrictamente necesarias.
 app.use(cors());
 app.use(express.json());
 
-// ─── Rutas ───
-
-// Health check
+// Esta es solo para verificar que todo esté funcionando correctamente.
 app.get("/api/health", (_req, res) => {
   res.json({ success: true, data: { status: "ok", timestamp: new Date().toISOString() } });
 });
@@ -30,11 +29,8 @@ app.use("/api/clientes-juridicos", clientesJuridicosRoutes);
 app.use("/api/mantenimientos", mantenimientosRoutes);
 app.use("/api/productos", inventarioRoutes);
 app.use("/api/facturas", facturacionRoutes);
-
-// ─── Error handler ───
 app.use(errorHandler);
 
-// ─── Inicio del servidor ───
 app.listen(PORT, () => {
-  console.log(`[GLinks CR API] Servidor corriendo en puerto ${PORT}`);
+  console.log(`[API] Servidor corriendo en puerto ${PORT}`);
 });

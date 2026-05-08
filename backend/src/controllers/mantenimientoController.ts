@@ -8,8 +8,6 @@ import * as mantenimientoService from "../services/mantenimientoService.js";
 import { ZodError } from "zod";
 import { toInt, toStr } from "../lib/utils.js";
 
-// ─── Mantenimiento a clientes físicos ───
-
 export async function listFisicos(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const page = Math.max(1, toInt(req.query.page, 1));
@@ -38,8 +36,6 @@ export async function createFisico(req: AuthRequest, res: Response, next: NextFu
     next(err);
   }
 }
-
-// ─── Mantenimiento a clientes jurídicos ───
 
 export async function listJuridicos(req: AuthRequest, res: Response, next: NextFunction) {
   try {

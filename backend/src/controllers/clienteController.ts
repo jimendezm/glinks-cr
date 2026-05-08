@@ -10,8 +10,6 @@ import * as clienteService from "../services/clienteService.js";
 import { ZodError } from "zod";
 import { toInt, toStr, paramStr } from "../lib/utils.js";
 
-// ─── Cliente Físico ───
-
 export async function listFisicos(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const page = Math.max(1, toInt(req.query.page, 1));
@@ -90,8 +88,6 @@ export async function searchFisicos(req: AuthRequest, res: Response, next: NextF
     next(err);
   }
 }
-
-// ─── Cliente Jurídico ───
 
 export async function listJuridicos(req: AuthRequest, res: Response, next: NextFunction) {
   try {

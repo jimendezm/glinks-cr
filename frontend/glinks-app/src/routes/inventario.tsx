@@ -5,23 +5,35 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-
+import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Table, TableHeader, TableBody, TableRow, TableHead, TableCell
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
 } from "@/components/ui/table";
-
-import { useEffect, useState } from "react";
-import { productosApi } from "@/services/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { productosApi, type CreateProductoInput } from "@/services/api/productos";
 import type { Producto, ProductoTipo, ProductoEstado } from "@/models";
-import { Plus, Pencil, RefreshCw, Search } from "lucide-react";
+import { Plus, Pencil, Search, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { useOnline } from "@/hooks/useOnline";
 
 export const Route = createFileRoute("/inventario")({
   component: () => (
@@ -31,32 +43,49 @@ export const Route = createFileRoute("/inventario")({
   ),
 });
 
-const empty: Omit<Producto, "id"> = {
+const emptyForm: CreateProductoInput = {
   nombre: "",
   tipo: "Router",
   serial: "",
-  estado: "disponible",
   stock: 0,
   precio: 0,
 };
 
 function InventarioPage() {
-  const { online } = useOnline();
-  const [, force] = useState(0);
-  const refresh = () => force((n) => n + 1);
-
-  const [pending, setPending] = useState(0);
+  const queryClient = useQueryClient();
   const [q, setQ] = useState("");
   const [filtroTipo, setFiltroTipo] = useState<string>("all");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Producto | null>(null);
-  const [form, setForm] = useState<Omit<Producto, "id">>(empty);
+  const [form, setForm] = useState<CreateProductoInput>(emptyForm);
 
-  useEffect(() => {
-    setPending(productosApi.pendingCount());
-  }, []);
+  const { data: pageData, isLoading } = useQuery({
+    queryKey: ["productos", "list"],
+    queryFn: () => productosApi.list(1, 200),
+  });
 
-  const productos = productosApi.list().filter((p) => {
+  const createMutation = useMutation({
+    mutationFn: (data: CreateProductoInput) => productosApi.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["productos"] });
+      toast.success("Producto registrado");
+      setOpen(false);
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<CreateProductoInput> & { estado?: string } }) =>
+      productosApi.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["productos"] });
+      toast.success("Producto actualizado");
+      setOpen(false);
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const productos = (pageData?.data ?? []).filter((p) => {
     const t = q.toLowerCase();
     const matchQ =
       !t ||
@@ -66,20 +95,24 @@ function InventarioPage() {
     return matchQ && matchT;
   });
 
-  const total = productosApi.list().length;
-  const enUso = productosApi.list().filter(
-    (p) => p.estado === "en_uso"
-  ).length;
+  const total = pageData?.data.length ?? 0;
+  const enUso = pageData?.data.filter((p) => p.estado === "en_uso").length ?? 0;
 
   const openCreate = () => {
     setEditing(null);
-    setForm(empty);
+    setForm(emptyForm);
     setOpen(true);
   };
 
   const openEdit = (p: Producto) => {
     setEditing(p);
-    setForm(p);
+    setForm({
+      nombre: p.nombre,
+      tipo: p.tipo,
+      serial: p.serial,
+      stock: p.stock,
+      precio: p.precio,
+    });
     setOpen(true);
   };
 
@@ -88,29 +121,14 @@ function InventarioPage() {
       toast.error("Nombre requerido");
       return;
     }
-
-    if (editing) productosApi.update(editing.id, form, !online);
-    else productosApi.create(form, !online);
-
-    if (!online) {
-      toast.warning("Guardado en modo offline");
-      setPending(productosApi.pendingCount());
+    if (editing) {
+      updateMutation.mutate({ id: editing.id, data: { ...form, estado: editing.estado } });
     } else {
-      toast.success(
-        editing ? "Producto actualizado" : "Producto registrado"
-      );
+      createMutation.mutate(form);
     }
-
-    setOpen(false);
-    refresh();
   };
 
-  const sync = () => {
-    const n = productosApi.sync();
-    setPending(0);
-    refresh();
-    toast.success(`${n} cambios sincronizados`);
-  };
+  const saving = createMutation.isPending || updateMutation.isPending;
 
   return (
     <div className="space-y-5">
@@ -118,44 +136,32 @@ function InventarioPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Inventario</h1>
-          <p className="text-muted-foreground text-sm">
-            Routers y equipos PoE
-          </p>
+          <p className="text-muted-foreground text-sm">Routers y equipos PoE</p>
         </div>
-
-        <div className="flex gap-2">
-          {pending > 0 && (
-            <Button variant="outline" onClick={sync}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Sincronizar ({pending})
-            </Button>
-          )}
-
-          <Button onClick={openCreate}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nuevo
-          </Button>
-        </div>
+        <Button onClick={openCreate}>
+          <Plus className="h-4 w-4 mr-2" />
+          Nuevo
+        </Button>
       </div>
 
       {/* STATS */}
       <div className="grid grid-cols-3 gap-3">
         <Card className="p-4">
           <div className="text-xs text-muted-foreground">Total</div>
-          <div className="text-2xl font-bold">{total}</div>
+          <div className="text-2xl font-bold">
+            {isLoading ? <Skeleton className="h-8 w-10" /> : total}
+          </div>
         </Card>
-
         <Card className="p-4">
           <div className="text-xs text-muted-foreground">En uso</div>
-          <div className="text-2xl font-bold">{enUso}</div>
-        </Card>
-
-        <Card className="p-4">
-          <div className="text-xs text-muted-foreground">
-            Disponibles
-          </div>
           <div className="text-2xl font-bold">
-            {total - enUso}
+            {isLoading ? <Skeleton className="h-8 w-10" /> : enUso}
+          </div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-xs text-muted-foreground">Disponibles</div>
+          <div className="text-2xl font-bold">
+            {isLoading ? <Skeleton className="h-8 w-10" /> : total - enUso}
           </div>
         </Card>
       </div>
@@ -172,7 +178,6 @@ function InventarioPage() {
               onChange={(e) => setQ(e.target.value)}
             />
           </div>
-
           <Select value={filtroTipo} onValueChange={setFiltroTipo}>
             <SelectTrigger>
               <SelectValue />
@@ -189,94 +194,74 @@ function InventarioPage() {
           </Select>
         </div>
 
-        <Table>
-          <TableHeader>
-            <TableRow className="text-muted-foreground">
-              <TableHead>Producto</TableHead>
-              <TableHead>Tipo</TableHead>
-              <TableHead className="hidden md:table-cell">
-                Serial
-              </TableHead>
-              <TableHead>Stock</TableHead>
-              <TableHead>Estado</TableHead>
-              <TableHead />
-            </TableRow>
-          </TableHeader>
-
-          <TableBody>
-            {productos.map((p) => (
-              <TableRow key={p.id}>
-                <TableCell className="font-medium">
-                  {p.nombre}
-                </TableCell>
-                <TableCell>{p.tipo}</TableCell>
-                <TableCell className="hidden md:table-cell">
-                  {p.serial}
-                </TableCell>
-                <TableCell>{p.stock}</TableCell>
-                <TableCell>
-                  <Badge
-                    variant={
-                      p.estado === "disponible"
-                        ? "default"
-                        : "secondary"
-                    }
-                  >
-                    {p.estado === "disponible"
-                      ? "Disponible"
-                      : "En uso"}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => openEdit(p)}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                </TableCell>
-              </TableRow>
+        {isLoading ? (
+          <div className="space-y-2">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <Skeleton key={i} className="h-10 w-full" />
             ))}
-
-            {productos.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                  Sin productos
-                </TableCell>
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow className="text-muted-foreground">
+                <TableHead>Producto</TableHead>
+                <TableHead>Tipo</TableHead>
+                <TableHead className="hidden md:table-cell">Serial</TableHead>
+                <TableHead>Stock</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead />
               </TableRow>
-            )}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {productos.map((p) => (
+                <TableRow key={p.id}>
+                  <TableCell className="font-medium">{p.nombre}</TableCell>
+                  <TableCell>{p.tipo}</TableCell>
+                  <TableCell className="hidden md:table-cell">{p.serial}</TableCell>
+                  <TableCell>{p.stock}</TableCell>
+                  <TableCell>
+                    <Badge variant={p.estado === "disponible" ? "default" : "secondary"}>
+                      {p.estado === "disponible" ? "Disponible" : "En uso"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="icon" onClick={() => openEdit(p)}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {productos.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    Sin productos
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        )}
       </Card>
 
       {/* MODAL */}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(v) => { if (!v) setOpen(false); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {editing ? "Editar producto" : "Nuevo producto"}
-            </DialogTitle>
+            <DialogTitle>{editing ? "Editar producto" : "Nuevo producto"}</DialogTitle>
           </DialogHeader>
-
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
               <Label>Nombre</Label>
               <Input
                 value={form.nombre}
-                onChange={(e) =>
-                  setForm({ ...form, nombre: e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, nombre: e.target.value })}
               />
             </div>
-
             <div>
               <Label>Tipo</Label>
               <Select
                 value={form.tipo}
-                onValueChange={(v) =>
-                  setForm({ ...form, tipo: v as ProductoTipo })
-                }
+                onValueChange={(v) => setForm({ ...form, tipo: v as ProductoTipo })}
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -289,61 +274,36 @@ function InventarioPage() {
                 </SelectContent>
               </Select>
             </div>
-
-            <div>
-              <Label>Estado</Label>
-              <Select
-                value={form.estado}
-                onValueChange={(v) =>
-                  setForm({ ...form, estado: v as ProductoEstado })
-                }
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="disponible">Disponible</SelectItem>
-                  <SelectItem value="en_uso">En uso</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
             <div>
               <Label>Serial</Label>
               <Input
                 value={form.serial}
-                onChange={(e) =>
-                  setForm({ ...form, serial: e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, serial: e.target.value })}
               />
             </div>
-
             <div>
               <Label>Stock</Label>
               <Input
                 type="number"
                 value={form.stock}
-                onChange={(e) =>
-                  setForm({ ...form, stock: +e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, stock: +e.target.value })}
               />
             </div>
-
-            <div className="col-span-2">
+            <div>
               <Label>Precio</Label>
               <Input
                 type="number"
                 value={form.precio}
-                onChange={(e) =>
-                  setForm({ ...form, precio: +e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, precio: +e.target.value })}
               />
             </div>
           </div>
-
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>
+            <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>
               Cancelar
             </Button>
-            <Button onClick={submit}>
+            <Button onClick={submit} disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
               {editing ? "Guardar" : "Registrar"}
             </Button>
           </DialogFooter>

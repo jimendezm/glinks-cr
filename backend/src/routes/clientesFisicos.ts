@@ -1,16 +1,22 @@
 import { Router } from "express";
-import * as clienteController from "../controllers/clienteController.js";
+import * as controller from "../controllers/clientesFisicosController.js";
 import { authenticate } from "../middleware/auth.js";
 
 const router = Router();
 
 router.use(authenticate);
 
-router.get("/", clienteController.listFisicos);
-router.get("/search", clienteController.searchFisicos);
-router.get("/:id", clienteController.getFisico);
-router.post("/", clienteController.createFisico);
-router.put("/:id", clienteController.updateFisico);
-router.delete("/:id", clienteController.deleteFisico);
+// Returns all physical clients.
+router.get("/", controller.list);
+// Returns a specific client based on search criteria.
+router.get("/search", controller.search);
+// Returns a specific client.
+router.get("/:id", controller.getById);
+// Creates a new physical client.
+router.post("/", controller.create);
+// Updates a client.
+router.put("/:id", controller.update);
+// Deletes a client.
+router.delete("/:id", controller.remove);
 
 export default router;

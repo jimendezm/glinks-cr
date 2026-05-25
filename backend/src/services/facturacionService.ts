@@ -1,81 +1,91 @@
 import prisma from "../config/database.js";
 
-interface FacturaItemInput {
-  productoId: string;
-  nombre: string;
-  cantidad: number;
-  precio: number;
-}
+const invoiceInclude = {
+  physicalClient: true,
+  legalClient: true,
+  serviceProductItems: { include: { product: true } },
+  physicalProductItems: { include: { product: true } },
+} as const;
 
-interface CreateFacturaInput {
-  items: FacturaItemInput[];
-  clienteFisicoId?: string;
-  clienteJuridicoId?: string;
-}
+// ─── List & Get ──────────────────────────────────────────────────────
 
-export async function listFacturas(page = 1, limit = 50) {
-  const skip = (page - 1) * limit;
-  const [data, total] = await Promise.all([
-    prisma.factura.findMany({
-      skip,
+export async function listInvoices(page: number, limit: number) {
+  const [invoices, total] = await Promise.all([
+    prisma.invoice.findMany({
+      include: invoiceInclude,
+      skip: (page - 1) * limit,
       take: limit,
-      orderBy: { fecha: "desc" },
-      include: {
-        items: true,
-        clienteFisico: { select: { id: true, nombre: true } },
-        clienteJuridico: { select: { id: true, nombreEmpresa: true } },
-      },
+      orderBy: { date: "desc" },
     }),
-    prisma.factura.count(),
+    prisma.invoice.count(),
   ]);
-  return { data, total, page, limit };
+
+  return { invoices, total };
 }
 
-export async function getFactura(id: string) {
-  return prisma.factura.findUnique({
+export async function getInvoiceById(id: string) {
+  const invoice = await prisma.invoice.findUnique({
     where: { id },
-    include: {
-      items: true,
-      clienteFisico: { select: { id: true, nombre: true, cedula: true } },
-      clienteJuridico: { select: { id: true, nombreEmpresa: true, cedulaJuridica: true } },
-    },
+    include: invoiceInclude,
   });
+  if (!invoice) {
+    throw new Error("Factura no encontrada");
+  }
+  return invoice;
 }
 
-export async function createFactura(input: CreateFacturaInput) {
-  const subtotal = input.items.reduce((sum, item) => sum + item.cantidad * item.precio, 0);
-  const impuestos = subtotal * 0.13; // 13% IVA
-  const total = subtotal + impuestos;
+// ─── Create ──────────────────────────────────────────────────────────
 
-  // Generar número de factura secuencial
-  const count = await prisma.factura.count();
-  const numero = `FAC-${(count + 1).toString().padStart(4, "0")}`;
-
-  return prisma.factura.create({
+export async function createPhysicalInvoice(data: {
+  physicalClientId: string;
+  physicalProductItems: { productId: string; amount: number }[];
+  serviceProductItems: { productId: string; startDate: Date; endDate: Date }[];
+}) {
+  return prisma.invoice.create({
     data: {
-      numero,
-      subtotal,
-      impuestos,
-      total,
-      estado: "activa",
-      clienteFisicoId: input.clienteFisicoId ?? null,
-      clienteJuridicoId: input.clienteJuridicoId ?? null,
-      items: {
-        create: input.items.map((item) => ({
-          productoId: item.productoId,
-          nombre: item.nombre,
-          cantidad: item.cantidad,
-          precio: item.precio,
+      physical_client_id: data.physicalClientId,
+      legal_client_id: null,
+      physicalProductItems: {
+        create: data.physicalProductItems.map((item) => ({
+          product_id: item.productId,
+          amount: item.amount,
+        })),
+      },
+      serviceProductItems: {
+        create: data.serviceProductItems.map((item) => ({
+          product_id: item.productId,
+          start_date: item.startDate,
+          end_date: item.endDate,
         })),
       },
     },
-    include: { items: true },
+    include: invoiceInclude,
   });
 }
 
-export async function anularFactura(id: string) {
-  return prisma.factura.update({
-    where: { id },
-    data: { estado: "anulada" },
+export async function createLegalInvoice(data: {
+  legalClientId: string;
+  physicalProductItems: { productId: string; amount: number }[];
+  serviceProductItems: { productId: string; startDate: Date; endDate: Date }[];
+}) {
+  return prisma.invoice.create({
+    data: {
+      physical_client_id: null,
+      legal_client_id: data.legalClientId,
+      physicalProductItems: {
+        create: data.physicalProductItems.map((item) => ({
+          product_id: item.productId,
+          amount: item.amount,
+        })),
+      },
+      serviceProductItems: {
+        create: data.serviceProductItems.map((item) => ({
+          product_id: item.productId,
+          start_date: item.startDate,
+          end_date: item.endDate,
+        })),
+      },
+    },
+    include: invoiceInclude,
   });
 }

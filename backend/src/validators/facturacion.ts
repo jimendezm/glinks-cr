@@ -2,18 +2,23 @@ import { z } from "zod";
 
 export const ServiceItemSchema = z.object({
   productId: z.string().uuid(),
-  startDate: z.date(),
-  endDate: z.date(),
+  startDate: z.coerce.date(),
+  endDate: z.coerce.date(),
 })
 
 export const PhysicalItemSchema = z.object({
   productId: z.string().uuid(),
-  amount: z.number()
+  amount: z.number().int().positive()
 })
 
-export const createInvoiceSchema = z.object({
-  physicalClientId: z.string().uuid().optional().nullable(),
-  legalClientId: z.string().uuid().optional().nullable(),
+export const createPhysicalInvoiceSchema = z.object({
+  physicalClientId: z.string().uuid(),
+  physicalProductItems: z.array(PhysicalItemSchema),
+  serviceProductItems: z.array(ServiceItemSchema)
+})
+
+export const createLegalInvoiceSchema = z.object({
+  legalClientId: z.string().uuid(),
   physicalProductItems: z.array(PhysicalItemSchema),
   serviceProductItems: z.array(ServiceItemSchema)
 })

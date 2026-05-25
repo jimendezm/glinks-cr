@@ -1,63 +1,96 @@
 import prisma from "../config/database.js";
 
-// ─── Mantenimiento a clientes físicos ───
+const maintenanceInclude = {
+  responsible: { select: { id: true, username: true, role: true } },
+  maintenanceProducts: { include: { product: true } },
+  physical_client: true,
+  legal_client: true,
+} as const;
 
-export async function listMantenimientosFisicos(clienteId?: string, page = 1, limit = 50) {
-  const where = clienteId ? { clienteFisicoId: clienteId } : {};
-  const skip = (page - 1) * limit;
+// ─── Physical Client Maintenances ────────────────────────────────────
 
-  const [data, total] = await Promise.all([
-    prisma.mantenimientoFisico.findMany({
+export async function listPhysicalMaintenances(page: number, limit: number) {
+  const where = { physical_client_id: { not: null } };
+
+  const [maintenances, total] = await Promise.all([
+    prisma.maintenance.findMany({
       where,
-      skip,
+      include: maintenanceInclude,
+      skip: (page - 1) * limit,
       take: limit,
-      orderBy: { fecha: "desc" },
-      include: { responsable: { select: { id: true, name: true, username: true } } },
+      orderBy: { date: "desc" },
     }),
-    prisma.mantenimientoFisico.count({ where }),
+    prisma.maintenance.count({ where }),
   ]);
 
-  return { data, total, page, limit };
+  return { maintenances, total };
 }
 
-export async function createMantenimientoFisico(data: {
-  clienteFisicoId: string;
-  descripcion: string;
-  responsableId: string;
+export async function createPhysicalMaintenance(data: {
+  date: Date;
+  description: string;
+  physicalClientId: string;
+  responsibleId: string;
+  maintenanceProducts: { amount: number; productId: string }[];
 }) {
-  return prisma.mantenimientoFisico.create({
-    data,
-    include: { responsable: { select: { id: true, name: true, username: true } } },
+  return prisma.maintenance.create({
+    data: {
+      date: data.date,
+      description: data.description,
+      physical_client_id: data.physicalClientId,
+      legal_client_id: null,
+      responsible_id: data.responsibleId,
+      maintenanceProducts: {
+        create: data.maintenanceProducts.map((p) => ({
+          amount: p.amount,
+          product_id: p.productId,
+        })),
+      },
+    },
+    include: maintenanceInclude,
   });
 }
 
-// ─── Mantenimiento a clientes jurídicos ───
+// ─── Legal Client Maintenances ───────────────────────────────────────
 
-export async function listMantenimientosJuridicos(clienteId?: string, page = 1, limit = 50) {
-  const where = clienteId ? { clienteJuridicoId: clienteId } : {};
-  const skip = (page - 1) * limit;
+export async function listLegalMaintenances(page: number, limit: number) {
+  const where = { legal_client_id: { not: null } };
 
-  const [data, total] = await Promise.all([
-    prisma.mantenimientoJuridico.findMany({
+  const [maintenances, total] = await Promise.all([
+    prisma.maintenance.findMany({
       where,
-      skip,
+      include: maintenanceInclude,
+      skip: (page - 1) * limit,
       take: limit,
-      orderBy: { fecha: "desc" },
-      include: { responsable: { select: { id: true, name: true, username: true } } },
+      orderBy: { date: "desc" },
     }),
-    prisma.mantenimientoJuridico.count({ where }),
+    prisma.maintenance.count({ where }),
   ]);
 
-  return { data, total, page, limit };
+  return { maintenances, total };
 }
 
-export async function createMantenimientoJuridico(data: {
-  clienteJuridicoId: string;
-  descripcion: string;
-  responsableId: string;
+export async function createLegalMaintenance(data: {
+  date: Date;
+  description: string;
+  legalClientId: string;
+  responsibleId: string;
+  maintenanceProducts: { amount: number; productId: string }[];
 }) {
-  return prisma.mantenimientoJuridico.create({
-    data,
-    include: { responsable: { select: { id: true, name: true, username: true } } },
+  return prisma.maintenance.create({
+    data: {
+      date: data.date,
+      description: data.description,
+      physical_client_id: null,
+      legal_client_id: data.legalClientId,
+      responsible_id: data.responsibleId,
+      maintenanceProducts: {
+        create: data.maintenanceProducts.map((p) => ({
+          amount: p.amount,
+          product_id: p.productId,
+        })),
+      },
+    },
+    include: maintenanceInclude,
   });
 }

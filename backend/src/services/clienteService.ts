@@ -1,225 +1,229 @@
 import prisma from "../config/database.js";
 
-// ─── Cliente Físico ───
+// ─── Physical Clients ────────────────────────────────────────────────
 
-export async function listClientesFisicos(page = 1, limit = 50) {
-  const skip = (page - 1) * limit;
-  const [data, total] = await Promise.all([
-    prisma.clienteFisico.findMany({
-      skip,
+export async function listPhysicalClients(page: number, limit: number) {
+  const [clients, total] = await Promise.all([
+    prisma.physicalClient.findMany({
+      skip: (page - 1) * limit,
       take: limit,
-      orderBy: { nombre: "asc" },
-      include: {
-        sectorial: { select: { id: true, nombre: true } },
-        tipoAP: { select: { id: true, nombre: true } },
-      },
+      orderBy: { createdAt: "desc" },
     }),
-    prisma.clienteFisico.count(),
+    prisma.physicalClient.count(),
   ]);
-  return { data, total, page, limit };
+
+  return { clients, total };
 }
 
-export async function getClienteFisico(id: string) {
-  return prisma.clienteFisico.findUnique({
-    where: { id },
-    include: {
-      sectorial: { select: { id: true, nombre: true } },
-      tipoAP: { select: { id: true, nombre: true } },
-    },
-  });
-}
-
-export async function createClienteFisico(data: {
-  cedula: string;
-  nombre: string;
-  apellido1: string;
-  apellido2: string;
-  telefonoPrimario: string;
-  telefonoSecundario?: string | null;
-  email?: string | null;
-  domicilio: string;
-  plan: string;
-  sectorialId: string;
-  tipoAPId: string;
-  routerId: number;
-  poeId: number;
-}) {
-  return prisma.clienteFisico.create({
-    data,
-    include: {
-      sectorial: { select: { id: true, nombre: true } },
-      tipoAP: { select: { id: true, nombre: true } },
-    },
-  });
-}
-
-export async function updateClienteFisico(
-  id: string,
-  data: Partial<{
-    nombre: string;
-    apellido1: string;
-    apellido2: string;
-    cedula: string;
-    telefonoPrimario: string;
-    telefonoSecundario: string | null;
-    email: string | null;
-    domicilio: string;
-    plan: string;
-    sectorialId: string;
-    tipoAPId: string;
-    routerId: number;
-    poeId: number;
-  }>,
+export async function searchPhysicalClients(
+  name: string | undefined,
+  nationalId: string | undefined,
+  page: number,
+  limit: number,
 ) {
-  return prisma.clienteFisico.update({
-    where: { id },
-    data,
-    include: {
-      sectorial: { select: { id: true, nombre: true } },
-      tipoAP: { select: { id: true, nombre: true } },
-    },
-  });
-}
+  const where = {
+    ...(nationalId ? { national_id: nationalId } : {}),
+    ...(name
+      ? {
+          OR: [
+            { name: { contains: name, mode: "insensitive" as const } },
+            { last_name_1: { contains: name, mode: "insensitive" as const } },
+            { last_name_2: { contains: name, mode: "insensitive" as const } },
+          ],
+        }
+      : {}),
+  };
 
-export async function deleteClienteFisico(id: string) {
-  const cliente = await prisma.clienteFisico.findUnique({ where: { id } });
-  if (!cliente) return null;
-
-  await prisma.mantenimientoFisico.deleteMany({ where: { clienteFisicoId: id } });
-  await prisma.factura.deleteMany({ where: { clienteFisicoId: id } });
-
-  return prisma.clienteFisico.delete({ where: { id } });
-}
-
-export async function searchClientesFisicos(filters: {
-  nombre?: string;
-  cedula?: string;
-  sectorial?: string;
-}) {
-  const where: Record<string, unknown> = {};
-  if (filters.nombre) where.nombre = { contains: filters.nombre, mode: "insensitive" };
-  if (filters.cedula) where.cedula = { contains: filters.cedula };
-  if (filters.sectorial) {
-    where.sectorial = { nombre: { contains: filters.sectorial, mode: "insensitive" } };
-  }
-
-  return prisma.clienteFisico.findMany({
-    where,
-    take: 50,
-    orderBy: { nombre: "asc" },
-    include: {
-      sectorial: { select: { id: true, nombre: true } },
-      tipoAP: { select: { id: true, nombre: true } },
-    },
-  });
-}
-
-// ─── Cliente Jurídico ───
-
-export async function listClientesJuridicos(page = 1, limit = 50) {
-  const skip = (page - 1) * limit;
-  const [data, total] = await Promise.all([
-    prisma.clienteJuridico.findMany({
-      skip,
+  const [clients, total] = await Promise.all([
+    prisma.physicalClient.findMany({
+      where,
+      skip: (page - 1) * limit,
       take: limit,
-      orderBy: { nombreEmpresa: "asc" },
-      include: {
-        sectorial: { select: { id: true, nombre: true } },
-        tipoAP: { select: { id: true, nombre: true } },
-      },
+      orderBy: { createdAt: "desc" },
     }),
-    prisma.clienteJuridico.count(),
+    prisma.physicalClient.count({ where }),
   ]);
-  return { data, total, page, limit };
+
+  return { clients, total };
 }
 
-export async function getClienteJuridico(id: string) {
-  return prisma.clienteJuridico.findUnique({
-    where: { id },
-    include: {
-      sectorial: { select: { id: true, nombre: true } },
-      tipoAP: { select: { id: true, nombre: true } },
-    },
-  });
-}
-
-export async function createClienteJuridico(data: {
-  cedulaJuridica: string;
-  nombreEmpresa: string;
-  telefonoPrimario: string;
-  telefonoSecundario?: string | null;
-  domicilio: string;
-  email?: string | null;
-  plan: string;
-  sectorialId: string;
-  tipoAPId: string;
-  routerId: number;
-  poeId: number;
-}) {
-  return prisma.clienteJuridico.create({
-    data,
-    include: {
-      sectorial: { select: { id: true, nombre: true } },
-      tipoAP: { select: { id: true, nombre: true } },
-    },
-  });
-}
-
-export async function updateClienteJuridico(
-  id: string,
-  data: Partial<{
-    cedulaJuridica: string;
-    nombreEmpresa: string;
-    telefonoPrimario: string;
-    telefonoSecundario: string | null;
-    domicilio: string;
-    email: string | null;
-    plan: string;
-    sectorialId: string;
-    tipoAPId: string;
-    routerId: number;
-    poeId: number;
-  }>,
-) {
-  return prisma.clienteJuridico.update({
-    where: { id },
-    data,
-    include: {
-      sectorial: { select: { id: true, nombre: true } },
-      tipoAP: { select: { id: true, nombre: true } },
-    },
-  });
-}
-
-export async function deleteClienteJuridico(id: string) {
-  const cliente = await prisma.clienteJuridico.findUnique({ where: { id } });
-  if (!cliente) return null;
-
-  await prisma.mantenimientoJuridico.deleteMany({ where: { clienteJuridicoId: id } });
-  await prisma.factura.deleteMany({ where: { clienteJuridicoId: id } });
-
-  return prisma.clienteJuridico.delete({ where: { id } });
-}
-
-export async function searchClientesJuridicos(filters: {
-  nombreEmpresa?: string;
-  cedulaJuridica?: string;
-  sectorial?: string;
-}) {
-  const where: Record<string, unknown> = {};
-  if (filters.nombreEmpresa) where.nombreEmpresa = { contains: filters.nombreEmpresa, mode: "insensitive" };
-  if (filters.cedulaJuridica) where.cedulaJuridica = { contains: filters.cedulaJuridica };
-  if (filters.sectorial) {
-    where.sectorial = { nombre: { contains: filters.sectorial, mode: "insensitive" } };
+export async function getPhysicalClientById(id: string) {
+  const client = await prisma.physicalClient.findUnique({ where: { id } });
+  if (!client) {
+    throw new Error("Cliente físico no encontrado");
   }
+  return client;
+}
 
-  return prisma.clienteJuridico.findMany({
-    where,
-    take: 50,
-    orderBy: { nombreEmpresa: "asc" },
-    include: {
-      sectorial: { select: { id: true, nombre: true } },
-      tipoAP: { select: { id: true, nombre: true } },
+export async function createPhysicalClient(data: {
+  nationalId: string;
+  name: string;
+  lastName1: string;
+  lastName2: string;
+  primaryPhone: string;
+  secondaryPhone?: string | null;
+  email?: string | null;
+  address: string;
+  exonerated: boolean;
+}) {
+  return prisma.physicalClient.create({
+    data: {
+      national_id: data.nationalId,
+      name: data.name,
+      last_name_1: data.lastName1,
+      last_name_2: data.lastName2,
+      primary_phone: data.primaryPhone,
+      secondary_phone: data.secondaryPhone ?? null,
+      email: data.email ?? null,
+      address: data.address,
+      exonerated: data.exonerated,
     },
   });
+}
+
+export async function updatePhysicalClient(
+  id: string,
+  data: {
+    nationalId?: string;
+    name?: string;
+    lastName1?: string;
+    lastName2?: string;
+    primaryPhone?: string;
+    secondaryPhone?: string | null;
+    email?: string | null;
+    address?: string;
+    exonerated?: boolean;
+  },
+) {
+  // Verify the client exists before updating.
+  await getPhysicalClientById(id);
+
+  return prisma.physicalClient.update({
+    where: { id },
+    data: {
+      ...(data.nationalId !== undefined && { national_id: data.nationalId }),
+      ...(data.name !== undefined && { name: data.name }),
+      ...(data.lastName1 !== undefined && { last_name_1: data.lastName1 }),
+      ...(data.lastName2 !== undefined && { last_name_2: data.lastName2 }),
+      ...(data.primaryPhone !== undefined && { primary_phone: data.primaryPhone }),
+      ...(data.secondaryPhone !== undefined && { secondary_phone: data.secondaryPhone }),
+      ...(data.email !== undefined && { email: data.email }),
+      ...(data.address !== undefined && { address: data.address }),
+      ...(data.exonerated !== undefined && { exonerated: data.exonerated }),
+    },
+  });
+}
+
+export async function deletePhysicalClient(id: string) {
+  // Verify the client exists before deleting.
+  await getPhysicalClientById(id);
+
+  return prisma.physicalClient.delete({ where: { id } });
+}
+
+// ─── Legal Clients ───────────────────────────────────────────────────
+
+export async function listLegalClients(page: number, limit: number) {
+  const [clients, total] = await Promise.all([
+    prisma.legalClient.findMany({
+      skip: (page - 1) * limit,
+      take: limit,
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.legalClient.count(),
+  ]);
+
+  return { clients, total };
+}
+
+export async function searchLegalClients(
+  name: string | undefined,
+  legalId: string | undefined,
+  page: number,
+  limit: number,
+) {
+  const where = {
+    ...(legalId ? { legal_id: legalId } : {}),
+    ...(name
+      ? { name: { contains: name, mode: "insensitive" as const } }
+      : {}),
+  };
+
+  const [clients, total] = await Promise.all([
+    prisma.legalClient.findMany({
+      where,
+      skip: (page - 1) * limit,
+      take: limit,
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.legalClient.count({ where }),
+  ]);
+
+  return { clients, total };
+}
+
+export async function getLegalClientById(id: string) {
+  const client = await prisma.legalClient.findUnique({ where: { id } });
+  if (!client) {
+    throw new Error("Cliente jurídico no encontrado");
+  }
+  return client;
+}
+
+export async function createLegalClient(data: {
+  legalId: string;
+  name: string;
+  primaryPhone: string;
+  secondaryPhone?: string | null;
+  email?: string | null;
+  address: string;
+  exonerated: boolean;
+}) {
+  return prisma.legalClient.create({
+    data: {
+      legal_id: data.legalId,
+      name: data.name,
+      primary_phone: data.primaryPhone,
+      secondary_phone: data.secondaryPhone ?? null,
+      email: data.email ?? null,
+      address: data.address,
+      exonerated: data.exonerated,
+    },
+  });
+}
+
+export async function updateLegalClient(
+  id: string,
+  data: {
+    legalId?: string;
+    name?: string;
+    primaryPhone?: string;
+    secondaryPhone?: string | null;
+    email?: string | null;
+    address?: string;
+    exonerated?: boolean;
+  },
+) {
+  // Verify the client exists before updating.
+  await getLegalClientById(id);
+
+  return prisma.legalClient.update({
+    where: { id },
+    data: {
+      ...(data.legalId !== undefined && { legal_id: data.legalId }),
+      ...(data.name !== undefined && { name: data.name }),
+      ...(data.primaryPhone !== undefined && { primary_phone: data.primaryPhone }),
+      ...(data.secondaryPhone !== undefined && { secondary_phone: data.secondaryPhone }),
+      ...(data.email !== undefined && { email: data.email }),
+      ...(data.address !== undefined && { address: data.address }),
+      ...(data.exonerated !== undefined && { exonerated: data.exonerated }),
+    },
+  });
+}
+
+export async function deleteLegalClient(id: string) {
+  // Verify the client exists before deleting.
+  await getLegalClientById(id);
+
+  return prisma.legalClient.delete({ where: { id } });
 }

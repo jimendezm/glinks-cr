@@ -59,8 +59,8 @@ model Maintenance {
   legal_client_id    String?
   responsible_id     String
 
-  physical_client     PhysicalClient       @relation(fields: [physical_client_id], references: [id])
-  legal_client        LegalClient          @relation(fields: [legal_client_id], references: [id])
+  physical_client     PhysicalClient?      @relation(fields: [physical_client_id], references: [id])
+  legal_client        LegalClient?         @relation(fields: [legal_client_id], references: [id])
   responsible         User                 @relation(fields: [responsible_id], references: [id])
   maintenanceProducts MaintenanceProduct[]
 }

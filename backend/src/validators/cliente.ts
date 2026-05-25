@@ -26,3 +26,7 @@ export const createLegalClientSchema = z.object({
   address: z.string().min(1).max(255),
   exonerated: z.boolean()
 });
+
+export const updatePhysicalClientSchema = createPhysicalClientSchema.partial();
+
+export const updateLegalClientSchema = createLegalClientSchema.partial();

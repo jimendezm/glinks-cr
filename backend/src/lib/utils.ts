@@ -23,3 +23,22 @@ export function paramStr(val: unknown, fallback = ""): string {
   if (Array.isArray(val)) return String(val[0] ?? fallback);
   return fallback;
 }
+
+/**
+ * Parse pagination query params. Returns skip/take for Prisma and page/limit for the response.
+ */
+export function parsePagination(query: { page?: string; limit?: string }): {
+  skip: number;
+  take: number;
+  page: number;
+  limit: number;
+} {
+  const page = Math.max(1, toInt(query.page, 1));
+  const limit = Math.min(100, Math.max(1, toInt(query.limit, 20)));
+  return {
+    skip: (page - 1) * limit,
+    take: limit,
+    page,
+    limit,
+  };
+}

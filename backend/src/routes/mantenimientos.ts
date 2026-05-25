@@ -1,14 +1,18 @@
 import { Router } from "express";
-import * as mantenimientoController from "../controllers/mantenimientoController.js";
+import * as controller from "../controllers/mantenimientosController.js";
 import { authenticate } from "../middleware/auth.js";
 
 const router = Router();
 
 router.use(authenticate);
 
-router.get("/fisicos", mantenimientoController.listFisicos);
-router.post("/fisicos", mantenimientoController.createFisico);
-router.get("/juridicos", mantenimientoController.listJuridicos);
-router.post("/juridicos", mantenimientoController.createJuridico);
+// Return all maintenances to a physical client.
+router.get("/fisicos", controller.listPhysical);
+// Creates a maintenance to a physical client.
+router.post("/fisicos", controller.createPhysical);
+// Return all maintenances to a legal client.
+router.get("/juridicos", controller.listLegal);
+// Creates a maintenance to a legal client.
+router.post("/juridicos", controller.createLegal);
 
 export default router;

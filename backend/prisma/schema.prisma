@@ -60,12 +60,13 @@ model Maintenance {
   responsible_id     String
 
   physical_client     PhysicalClient       @relation(fields: [physical_client_id], references: [id])
-  legal_client        LegalClient          @relation(fields: [physical_client_id], references: [id])
+  legal_client        LegalClient          @relation(fields: [legal_client_id], references: [id])
   responsible         User                 @relation(fields: [responsible_id], references: [id])
   maintenanceProducts MaintenanceProduct[]
 }
 
 model MaintenanceProduct {
+  id             String @id @default(uuid())
   amount         Int
   maintenance_id String
   product_id     String
@@ -101,6 +102,7 @@ model Invoice {
 }
 
 model ServiceProductInvoice {
+  id         String   @id @default(uuid())
   invoice_id String
   product_id String
   start_date DateTime // Start date of the service paid.
@@ -111,6 +113,7 @@ model ServiceProductInvoice {
 }
 
 model PhysicalProductInvoice {
+  id         String @id @default(uuid())
   invoice_id String
   product_id String
   amount     Int

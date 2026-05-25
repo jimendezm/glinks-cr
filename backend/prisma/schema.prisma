@@ -53,10 +53,10 @@ model LegalClient {
 
 model Maintenance {
   id                 String   @id @default(uuid())
-  fecha              DateTime @default(now())
-  descripcion        String
-  physical_client_id String
-  legal_client_id    String
+  date               DateTime @default(now())
+  description        String
+  physical_client_id String?
+  legal_client_id    String?
   responsible_id     String
 
   physical_client     PhysicalClient       @relation(fields: [physical_client_id], references: [id])
@@ -91,14 +91,14 @@ model Product {
 
 model Invoice {
   id                 String   @id @default(uuid())
-  fecha              DateTime @default(now())
+  date               DateTime @default(now())
   physical_client_id String?
   legal_client_id    String?
 
-  physicalClient         PhysicalClient?          @relation(fields: [physical_client_id], references: [id])
-  clienteJuridico        LegalClient?             @relation(fields: [legal_client_id], references: [id])
-  serviceProductInvoice  ServiceProductInvoice[]
-  physicalProductInvoice PhysicalProductInvoice[]
+  physicalClient       PhysicalClient?          @relation(fields: [physical_client_id], references: [id])
+  legalClient          LegalClient?             @relation(fields: [legal_client_id], references: [id])
+  serviceProductItems  ServiceProductInvoice[]
+  physicalProductItems PhysicalProductInvoice[]
 }
 
 model ServiceProductInvoice {

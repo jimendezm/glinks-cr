@@ -1,11 +1,15 @@
 import { z } from "zod";
 
-export const createMantenimientoFisicoSchema = z.object({
-  clienteFisicoId: z.string().uuid(),
-  descripcion: z.string().min(1).max(255),
-});
+const maintenanceProductSchema = z.object({
+  amount: z.number(),
+  productId: z.string().uuid()
+})
 
-export const createMantenimientoJuridicoSchema = z.object({
-  clienteJuridicoId: z.string().uuid(),
-  descripcion: z.string().min(1).max(255),
+export const createMaintenanceSchema = z.object({
+  date: z.date(),
+  description: z.string().min(1).max(255),
+  physicalClientId: z.string().uuid().optional().nullable(),
+  legalClientId: z.string().uuid().optional().nullable(),
+  responsibleId: z.string().uuid(),
+  maintenanceProducts: z.array(maintenanceProductSchema)
 });

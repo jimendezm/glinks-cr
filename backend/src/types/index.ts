@@ -1,7 +1,5 @@
 import type { Request } from "express";
 
-// ─── Auth ───
-
 export interface JwtPayload {
   userId: string;
   username: string;
@@ -11,8 +9,6 @@ export interface JwtPayload {
 export interface AuthRequest extends Request {
   user?: JwtPayload;
 }
-
-// ─── API Response envelope ───
 
 export interface ApiResponse<T = unknown> {
   success: boolean;

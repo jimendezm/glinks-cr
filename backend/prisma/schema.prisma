@@ -8,15 +8,12 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  username  String   @unique
-  password  String
-  role      Role     @default(admin)
-  name      String
-  createdAt DateTime @default(now())
-
-  mantenimientosFisicos   MantenimientoFisico[]
-  mantenimientosJuridicos MantenimientoJuridico[]
+  id           String        @id @default(uuid())
+  username     String        @unique
+  password     String
+  role         Role          @default(admin)
+  createdAt    DateTime      @default(now())
+  maintenances Maintenance[]
 }
 
 enum Role {
@@ -24,128 +21,100 @@ enum Role {
   tecnico
 }
 
-model Sectorial {
-  id     String @id @default(uuid())
-  nombre String @unique
-
-  clientesFisicos   ClienteFisico[]   @relation("ClienteFisicoSectorial")
-  clientesJuridicos ClienteJuridico[] @relation("ClienteJuridicoSectorial")
+model PhysicalClient {
+  id              String        @id @default(uuid())
+  national_id     String        @unique // Cédula.
+  name            String
+  last_name_1     String
+  last_name_2     String
+  primary_phone   String
+  secondary_phone String?
+  email           String?
+  address         String
+  exonerated      Boolean
+  createdAt       DateTime      @default(now())
+  maintenances    Maintenance[]
+  invoices        Invoice[]
 }
 
-model TipoAP {
-  id     String @id @default(uuid())
-  nombre String @unique
-
-  clientesFisicos   ClienteFisico[]   @relation("ClienteFisicoTipoAP")
-  clientesJuridicos ClienteJuridico[] @relation("ClienteJuridicoTipoAP")
+model LegalClient {
+  id              String        @id @default(uuid())
+  legal_id        String        @unique
+  name            String
+  primary_phone   String
+  secondary_phone String?
+  email           String?
+  address         String
+  exonerated      Boolean
+  createdAt       DateTime      @default(now())
+  maintenances    Maintenance[]
+  invoices        Invoice[]
 }
 
-model ClienteFisico {
+model Maintenance {
   id                 String   @id @default(uuid())
-  cedula             String   @unique
-  nombre             String
-  apellido1          String
-  apellido2          String
-  telefonoPrimario   String
-  telefonoSecundario String?
-  email              String?
-  domicilio          String
-  plan               String
-  sectorialId        String
-  tipoAPId           String
-  routerId           Int
-  poeId              Int
-  createdAt          DateTime @default(now())
+  fecha              DateTime @default(now())
+  descripcion        String
+  physical_client_id String
+  legal_client_id    String
+  responsible_id     String
 
-  sectorial Sectorial @relation("ClienteFisicoSectorial", fields: [sectorialId], references: [id])
-  tipoAP    TipoAP    @relation("ClienteFisicoTipoAP", fields: [tipoAPId], references: [id])
-
-  mantenimientos MantenimientoFisico[]
-  facturas       Factura[]
+  physical_client     PhysicalClient       @relation(fields: [physical_client_id], references: [id])
+  legal_client        LegalClient          @relation(fields: [physical_client_id], references: [id])
+  responsible         User                 @relation(fields: [responsible_id], references: [id])
+  maintenanceProducts MaintenanceProduct[]
 }
 
-model ClienteJuridico {
+model MaintenanceProduct {
+  amount         Int
+  maintenance_id String
+  product_id     String
+
+  maintenace Maintenance @relation(fields: [maintenance_id], references: [id])
+  product    Product     @relation(fields: [product_id], references: [id])
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  type        String
+  description String
+  unit_price  Float
+  billable    Boolean
+  createdAt   DateTime @default(now())
+
+  serviceProductInvoice  ServiceProductInvoice[]
+  physicalProductInvoice PhysicalProductInvoice[]
+  maintenanceProduct     MaintenanceProduct[]
+}
+
+model Invoice {
   id                 String   @id @default(uuid())
-  cedulaJuridica     String   @unique
-  nombreEmpresa      String
-  telefonoPrimario   String
-  telefonoSecundario String?
-  domicilio          String
-  email              String?
-  plan               String
-  sectorialId        String
-  tipoAPId           String
-  routerId           Int
-  poeId              Int
-  createdAt          DateTime @default(now())
+  fecha              DateTime @default(now())
+  physical_client_id String?
+  legal_client_id    String?
 
-  sectorial Sectorial @relation("ClienteJuridicoSectorial", fields: [sectorialId], references: [id])
-  tipoAP    TipoAP    @relation("ClienteJuridicoTipoAP", fields: [tipoAPId], references: [id])
-
-  mantenimientos MantenimientoJuridico[]
-  facturas       Factura[]
+  physicalClient         PhysicalClient?          @relation(fields: [physical_client_id], references: [id])
+  clienteJuridico        LegalClient?             @relation(fields: [legal_client_id], references: [id])
+  serviceProductInvoice  ServiceProductInvoice[]
+  physicalProductInvoice PhysicalProductInvoice[]
 }
 
-model MantenimientoFisico {
-  id              String   @id @default(uuid())
-  fecha           DateTime @default(now())
-  descripcion     String
-  responsableId   String
-  clienteFisicoId String
+model ServiceProductInvoice {
+  invoice_id String
+  product_id String
+  start_date DateTime // Start date of the service paid.
+  end_date   DateTime // End date of the service paid.
 
-  responsable User          @relation(fields: [responsableId], references: [id])
-  cliente     ClienteFisico @relation(fields: [clienteFisicoId], references: [id])
+  invoice Invoice @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [product_id], references: [id])
 }
 
-model MantenimientoJuridico {
-  id                String   @id @default(uuid())
-  fecha             DateTime @default(now())
-  descripcion       String
-  responsableId     String
-  clienteJuridicoId String
+model PhysicalProductInvoice {
+  invoice_id String
+  product_id String
+  amount     Int
 
-  responsable User            @relation(fields: [responsableId], references: [id])
-  cliente     ClienteJuridico @relation(fields: [clienteJuridicoId], references: [id])
-}
-
-model Producto {
-  id        String   @id @default(uuid())
-  nombre    String
-  tipo      String
-  serial    String   @unique
-  estado    String   @default("disponible")
-  stock     Int      @default(0)
-  precio    Float
-  createdAt DateTime @default(now())
-
-  facturaItems FacturaItem[]
-}
-
-model Factura {
-  id        String   @id @default(uuid())
-  numero    String   @unique
-  fecha     DateTime @default(now())
-  subtotal  Float
-  impuestos Float
-  total     Float
-  estado    String   @default("activa")
-
-  clienteFisicoId   String?
-  clienteJuridicoId String?
-
-  clienteFisico   ClienteFisico?   @relation(fields: [clienteFisicoId], references: [id])
-  clienteJuridico ClienteJuridico? @relation(fields: [clienteJuridicoId], references: [id])
-  items           FacturaItem[]
-}
-
-model FacturaItem {
-  id         String @id @default(uuid())
-  facturaId  String
-  productoId String
-  nombre     String
-  cantidad   Int
-  precio     Float
-
-  factura  Factura  @relation(fields: [facturaId], references: [id], onDelete: Cascade)
-  producto Producto @relation(fields: [productoId], references: [id])
+  invoice Invoice @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [product_id], references: [id])
 }

@@ -3,7 +3,6 @@ import type {
   PhysicalClient,
   LegalClient,
   UnifiedClient,
-  PaginatedResponse,
 } from "@/models";
 
 // ─── Tipos para creación/actualización ─────────────
@@ -34,26 +33,63 @@ export type CreateLegalClientInput = {
 
 export type UpdateLegalClientInput = Partial<CreateLegalClientInput>;
 
+// ─── Respuesta del backend ─────────────────────────
+interface BackendPagination {
+  take: number;
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+interface BackendListResponse<T> {
+  success: boolean;
+  data: T[];
+  pagination: BackendPagination;
+}
+
+interface BackendSingleResponse<T> {
+  success: boolean;
+  data: T;
+}
+
 // ─── Físicos ───────────────────────────────────────
 
 export const physicalClientsApi = {
-  list(page = 1, limit = 50) {
-    return http.get<PaginatedResponse<PhysicalClient>>(
-      `/clientes-fisicos?page=${page}&limit=${limit}`,
+  async list(page = 1, limit = 50) {
+    const response = await http.get<BackendListResponse<PhysicalClient>>(
+      `/clientes-fisicos?page=${page}&limit=${limit}`
     );
+    return {
+      data: response.data ?? [],
+      total: response.pagination?.total ?? 0,
+      page: response.pagination?.page ?? page,
+      limit: response.pagination?.limit ?? limit,
+    };
   },
 
-  search(nationalId?: string, name?: string, page = 1, limit = 50) {
-    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  async search(nationalId?: string, name?: string, page = 1, limit = 50) {
+    const params = new URLSearchParams();
+    params.set("page", String(page));
+    params.set("limit", String(limit));
     if (nationalId) params.set("nationalId", nationalId);
     if (name) params.set("name", name);
-    return http.get<PaginatedResponse<PhysicalClient>>(
-      `/clientes-fisicos/search?${params.toString()}`,
+    const response = await http.get<BackendListResponse<PhysicalClient>>(
+      `/clientes-fisicos/search?${params.toString()}`
     );
+    return {
+      data: response.data ?? [],
+      total: response.pagination?.total ?? 0,
+      page: response.pagination?.page ?? page,
+      limit: response.pagination?.limit ?? limit,
+    };
   },
 
-  getById(id: string) {
-    return http.get<PhysicalClient>(`/clientes-fisicos/${id}`);
+  async getById(id: string) {
+    const response = await http.get<BackendSingleResponse<PhysicalClient>>(
+      `/clientes-fisicos/${id}`
+    );
+    return response.data;
   },
 
   create(data: CreatePhysicalClientInput) {
@@ -72,23 +108,40 @@ export const physicalClientsApi = {
 // ─── Jurídicos ─────────────────────────────────────
 
 export const legalClientsApi = {
-  list(page = 1, limit = 50) {
-    return http.get<PaginatedResponse<LegalClient>>(
-      `/clientes-juridicos?page=${page}&limit=${limit}`,
+  async list(page = 1, limit = 50) {
+    const response = await http.get<BackendListResponse<LegalClient>>(
+      `/clientes-juridicos?page=${page}&limit=${limit}`
     );
+    return {
+      data: response.data ?? [],
+      total: response.pagination?.total ?? 0,
+      page: response.pagination?.page ?? page,
+      limit: response.pagination?.limit ?? limit,
+    };
   },
 
-  search(legalId?: string, name?: string, page = 1, limit = 50) {
-    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  async search(legalId?: string, name?: string, page = 1, limit = 50) {
+    const params = new URLSearchParams();
+    params.set("page", String(page));
+    params.set("limit", String(limit));
     if (legalId) params.set("legalId", legalId);
     if (name) params.set("name", name);
-    return http.get<PaginatedResponse<LegalClient>>(
-      `/clientes-juridicos/search?${params.toString()}`,
+    const response = await http.get<BackendListResponse<LegalClient>>(
+      `/clientes-juridicos/search?${params.toString()}`
     );
+    return {
+      data: response.data ?? [],
+      total: response.pagination?.total ?? 0,
+      page: response.pagination?.page ?? page,
+      limit: response.pagination?.limit ?? limit,
+    };
   },
 
-  getById(id: string) {
-    return http.get<LegalClient>(`/clientes-juridicos/${id}`);
+  async getById(id: string) {
+    const response = await http.get<BackendSingleResponse<LegalClient>>(
+      `/clientes-juridicos/${id}`
+    );
+    return response.data;
   },
 
   create(data: CreateLegalClientInput) {
@@ -112,14 +165,17 @@ export async function fetchAllClients(): Promise<UnifiedClient[]> {
     legalClientsApi.list(1, 1000),
   ]);
 
+  const physicalData = physical.data ?? [];
+  const legalData = legal.data ?? [];
+
   return [
-    ...physical.data.map(
+    ...physicalData.map(
       (c): UnifiedClient => ({
         ...c,
         tipo: "fisico",
       }),
     ),
-    ...legal.data.map(
+    ...legalData.map(
       (c): UnifiedClient => ({
         ...c,
         tipo: "juridico",

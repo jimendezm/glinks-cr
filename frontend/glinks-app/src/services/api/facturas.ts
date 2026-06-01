@@ -1,7 +1,16 @@
 import { http } from "../httpClient";
-import type { Invoice, PaginatedResponse } from "@/models";
+import type { Invoice } from "@/models";
 
-// ─── Tipos ─────────────────────────────────────────
+interface BackendResponse<T> {
+  success: boolean;
+  data: T;
+  pagination?: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
 
 export interface ServiceProductItemInput {
   productId: string;
@@ -26,13 +35,17 @@ export interface CreateLegalInvoiceInput {
   serviceProductItems: ServiceProductItemInput[];
 }
 
-// ─── API ───────────────────────────────────────────
-
 export const facturasApi = {
-  list(page = 1, limit = 50) {
-    return http.get<PaginatedResponse<Invoice>>(
-      `/facturas?page=${page}&limit=${limit}`,
+  async list(page = 1, limit = 50) {
+    const response = await http.get<BackendResponse<Invoice[]>>(
+      `/facturas?page=${page}&limit=${limit}`
     );
+    return {
+      data: response.data ?? [],
+      total: response.pagination?.total ?? 0,
+      page: response.pagination?.page ?? page,
+      limit: response.pagination?.limit ?? limit,
+    };
   },
 
   getById(id: string) {
@@ -48,29 +61,23 @@ export const facturasApi = {
   },
 };
 
-// ─── Helper para calcular totales ──────────────────
-
 export function calculateInvoiceTotals(invoice: Invoice): {
   subtotal: number;
   total: number;
 } {
   let subtotal = 0;
 
-  // Productos físicos
-  for (const item of invoice.physicalProductItems) {
-    if (item.product) {
-      subtotal += item.product.unit_price * item.amount;
+  for (const item of invoice.physicalProductItems ?? []) {
+    if (item?.product?.unit_price) {
+      subtotal += item.product.unit_price * (item.amount ?? 1);
     }
   }
 
-  // Servicios (se factura el período completo)
-  for (const item of invoice.serviceProductItems) {
-    if (item.product) {
+  for (const item of invoice.serviceProductItems ?? []) {
+    if (item?.product?.unit_price) {
       subtotal += item.product.unit_price;
     }
   }
 
-  // Nota: El backend puede calcular impuestos según exoneración del cliente
-  // Por ahora solo retornamos subtotal, el total puede incluir impuestos
   return { subtotal, total: subtotal };
 }

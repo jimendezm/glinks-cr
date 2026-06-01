@@ -12,10 +12,7 @@ export function getToken(): string | null {
   return token;
 }
 
-async function request<T>(
-  path: string,
-  options: RequestInit = {},
-): Promise<T> {
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...((options.headers as Record<string, string> | undefined) ?? {}),
@@ -23,7 +20,15 @@ async function request<T>(
 
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
+  } else {
+    // Intentar recuperar token del localStorage como respaldo
+    const savedToken = localStorage.getItem("erp_token") ?? sessionStorage.getItem("erp_token");
+    if (savedToken) {
+      token = savedToken;
+      headers["Authorization"] = `Bearer ${token}`;
+    }
   }
+
 
   const response = await fetch(`${BASE_URL}${path}`, {
     ...options,
@@ -34,50 +39,23 @@ async function request<T>(
 
   try {
     json = await response.json();
-  } catch {
+  } catch (error) {
     json = null;
   }
 
-  // 401
   if (response.status === 401) {
     token = null;
     throw new Error("Sesión expirada. Inicie sesión nuevamente.");
   }
 
-  // Error HTTP
   if (!response.ok) {
     throw new Error(
-      json?.error ??
-        json?.message ??
-        `Error del servidor (${response.status})`,
+      json?.error ?? json?.message ?? `Error del servidor (${response.status})`
     );
   }
 
-  /**
-   * SOPORTAR DIFERENTES RESPUESTAS DEL BACKEND
-   */
-
-  // Caso 1:
-  // { success: true, data: ... }
-  if (json?.success === true) {
-    return json.data as T;
-  }
-
-  // Caso 2:
-  // respuesta directa []
-  if (Array.isArray(json)) {
-    return json as T;
-  }
-
-  // Caso 3:
-  // objeto directo {}
-  if (typeof json === "object" && json !== null) {
-    return json as T;
-  }
-
-  // Caso 4:
-  // vacío
-  return {} as T;
+  // Retornar todo el objeto json (contiene success, data, pagination)
+  return json as T;
 }
 
 export const http = {

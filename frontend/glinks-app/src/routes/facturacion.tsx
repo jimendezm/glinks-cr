@@ -32,16 +32,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { fetchAllClients } from "@/services/api/clientes";
 import { productosApi } from "@/services/api/productos";
-import {
-  facturasApi,
-  calculateInvoiceTotals,
-  type PhysicalProductItemInput,
-  type ServiceProductItemInput,
-} from "@/services/api/facturas";
+import { facturasApi } from "@/services/api/facturas";
 import type { Invoice, Product } from "@/models";
-import { Plus, Eye, Calendar, Package, Loader2 } from "lucide-react";
+import { Plus, Eye, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { DateRangePicker } from "@/components/ui/date_range_picker";
 import { addDays } from "date-fns";
 
 export const Route = createFileRoute("/facturacion")({
@@ -51,8 +45,6 @@ export const Route = createFileRoute("/facturacion")({
     </Protected>
   ),
 });
-
-type InvoiceTab = "physical" | "service";
 
 interface PhysicalCartItem {
   productId: string;
@@ -71,26 +63,15 @@ function FacturacionPage() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<Invoice | null>(null);
-  const [activeTab, setActiveTab] = useState<InvoiceTab>("physical");
 
-  // Estado del formulario
   const [clientId, setClientId] = useState("");
   const [physicalItems, setPhysicalItems] = useState<PhysicalCartItem[]>([]);
   const [serviceItems, setServiceItems] = useState<ServiceCartItem[]>([]);
-
-  // Selector de productos físicos
   const [selectedPhysicalProductId, setSelectedPhysicalProductId] = useState("");
   const [physicalAmount, setPhysicalAmount] = useState(1);
-
-  // Selector de servicios
   const [selectedServiceProductId, setSelectedServiceProductId] = useState("");
-  const [serviceDateRange, setServiceDateRange] = useState<{
-    from: Date;
-    to: Date;
-  }>({
-    from: new Date(),
-    to: addDays(new Date(), 30),
-  });
+  const [serviceStartDate, setServiceStartDate] = useState(new Date());
+  const [serviceEndDate, setServiceEndDate] = useState(addDays(new Date(), 30));
 
   const { data: clients = [], isLoading: loadingClients } = useQuery({
     queryKey: ["clientes", "todos"],
@@ -119,11 +100,13 @@ function FacturacionPage() {
 
   const calculateSubtotal = () => {
     let subtotal = 0;
-    for (const item of physicalItems) {
-      subtotal += item.product.unit_price * item.amount;
+    for (let i = 0; i < physicalItems.length; i++) {
+      const item = physicalItems[i];
+      subtotal += (item.product?.unit_price ?? 0) * (item.amount ?? 1);
     }
-    for (const item of serviceItems) {
-      subtotal += item.product.unit_price;
+    for (let i = 0; i < serviceItems.length; i++) {
+      const item = serviceItems[i];
+      subtotal += item.product?.unit_price ?? 0;
     }
     return subtotal;
   };
@@ -140,8 +123,8 @@ function FacturacionPage() {
     setSelectedPhysicalProductId("");
     setPhysicalAmount(1);
     setSelectedServiceProductId("");
-    setServiceDateRange({ from: new Date(), to: addDays(new Date(), 30) });
-    setActiveTab("physical");
+    setServiceStartDate(new Date());
+    setServiceEndDate(addDays(new Date(), 30));
   };
 
   const addPhysicalItem = () => {
@@ -157,20 +140,16 @@ function FacturacionPage() {
     const product = physicalProducts.find((p) => p.id === selectedPhysicalProductId);
     if (!product) return;
 
-    const existing = physicalItems.find((i) => i.productId === selectedPhysicalProductId);
-    if (existing) {
-      setPhysicalItems(
-        physicalItems.map((i) =>
-          i.productId === selectedPhysicalProductId
-            ? { ...i, amount: i.amount + physicalAmount }
-            : i,
-        ),
-      );
+    const existingIndex = physicalItems.findIndex((i) => i.productId === selectedPhysicalProductId);
+    if (existingIndex >= 0) {
+      const newItems = [...physicalItems];
+      newItems[existingIndex] = {
+        ...newItems[existingIndex],
+        amount: newItems[existingIndex].amount + physicalAmount,
+      };
+      setPhysicalItems(newItems);
     } else {
-      setPhysicalItems([
-        ...physicalItems,
-        { productId: selectedPhysicalProductId, amount: physicalAmount, product },
-      ]);
+      setPhysicalItems([...physicalItems, { productId: selectedPhysicalProductId, amount: physicalAmount, product }]);
     }
 
     setSelectedPhysicalProductId("");
@@ -190,7 +169,6 @@ function FacturacionPage() {
     const product = serviceProducts.find((p) => p.id === selectedServiceProductId);
     if (!product) return;
 
-    // Verificar si ya existe el mismo servicio con fechas que se traslapan
     const existing = serviceItems.find((i) => i.productId === selectedServiceProductId);
     if (existing) {
       toast.error("Este servicio ya está agregado");
@@ -201,14 +179,13 @@ function FacturacionPage() {
       ...serviceItems,
       {
         productId: selectedServiceProductId,
-        startDate: serviceDateRange.from,
-        endDate: serviceDateRange.to,
+        startDate: serviceStartDate,
+        endDate: serviceEndDate,
         product,
       },
     ]);
 
     setSelectedServiceProductId("");
-    setServiceDateRange({ from: new Date(), to: addDays(new Date(), 30) });
   };
 
   const removeServiceItem = (index: number) => {
@@ -222,20 +199,16 @@ function FacturacionPage() {
         throw new Error("Agregue al menos un producto o servicio");
       }
 
-      const physicalProductItems: PhysicalProductItemInput[] = physicalItems.map(
-        (item) => ({
-          productId: item.productId,
-          amount: item.amount,
-        }),
-      );
+      const physicalProductItems = physicalItems.map((item) => ({
+        productId: item.productId,
+        amount: item.amount,
+      }));
 
-      const serviceProductItems: ServiceProductItemInput[] = serviceItems.map(
-        (item) => ({
-          productId: item.productId,
-          startDate: item.startDate,
-          endDate: item.endDate,
-        }),
-      );
+      const serviceProductItems = serviceItems.map((item) => ({
+        productId: item.productId,
+        startDate: item.startDate,
+        endDate: item.endDate,
+      }));
 
       if (selectedClient.tipo === "fisico") {
         return facturasApi.createPhysical({
@@ -251,9 +224,9 @@ function FacturacionPage() {
         });
       }
     },
-    onSuccess: (invoice) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["facturas"] });
-      toast.success(`Factura creada exitosamente`);
+      toast.success("Factura creada exitosamente");
       setOpen(false);
       resetForm();
     },
@@ -271,7 +244,23 @@ function FacturacionPage() {
   };
 
   const getInvoiceTotal = (invoice: Invoice) => {
-    const { total } = calculateInvoiceTotals(invoice);
+    let total = 0;
+    if (invoice.physicalProductItems) {
+      for (let i = 0; i < invoice.physicalProductItems.length; i++) {
+        const item = invoice.physicalProductItems[i];
+        if (item?.product?.unit_price) {
+          total += item.product.unit_price * (item.amount ?? 1);
+        }
+      }
+    }
+    if (invoice.serviceProductItems) {
+      for (let i = 0; i < invoice.serviceProductItems.length; i++) {
+        const item = invoice.serviceProductItems[i];
+        if (item?.product?.unit_price) {
+          total += item.product.unit_price;
+        }
+      }
+    }
     return total;
   };
 
@@ -292,9 +281,7 @@ function FacturacionPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Facturación</h1>
-          <p className="text-muted-foreground text-sm">
-            Gestión de facturas de clientes
-          </p>
+          <p className="text-muted-foreground text-sm">Gestión de facturas de clientes</p>
         </div>
         <Button onClick={() => { resetForm(); setOpen(true); }}>
           <Plus className="h-4 w-4 mr-2" />
@@ -357,7 +344,6 @@ function FacturacionPage() {
             <DialogTitle>Nueva factura</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            {/* Cliente */}
             <div>
               <Label>Cliente</Label>
               <Select value={clientId} onValueChange={setClientId}>
@@ -375,154 +361,125 @@ function FacturacionPage() {
                 </SelectContent>
               </Select>
               {selectedClient?.exonerated && (
-                <p className="text-xs text-green-600 mt-1">
-                  Cliente exonerado de impuestos
-                </p>
+                <p className="text-xs text-green-600 mt-1">Cliente exonerado de impuestos</p>
               )}
             </div>
 
-            {/* Tabs */}
-            <div className="flex gap-2 border-b">
-              <button
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
-                  activeTab === "physical"
-                    ? "border-b-2 border-primary text-primary"
-                    : "text-muted-foreground"
-                }`}
-                onClick={() => setActiveTab("physical")}
-              >
-                <Package className="h-4 w-4 inline mr-2" />
-                Productos físicos
-              </button>
-              <button
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
-                  activeTab === "service"
-                    ? "border-b-2 border-primary text-primary"
-                    : "text-muted-foreground"
-                }`}
-                onClick={() => setActiveTab("service")}
-              >
-                <Calendar className="h-4 w-4 inline mr-2" />
-                Servicios
-              </button>
-            </div>
-
             {/* Productos Físicos */}
-            {activeTab === "physical" && (
-              <div className="border rounded-md p-3 space-y-3">
-                <div className="grid grid-cols-12 gap-2 items-end">
-                  <div className="col-span-6">
-                    <Label>Producto</Label>
-                    <Select
-                      value={selectedPhysicalProductId}
-                      onValueChange={setSelectedPhysicalProductId}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccione" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {physicalProducts.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.name} - ₡{p.unit_price}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="col-span-4">
-                    <Label>Cantidad</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={physicalAmount}
-                      onChange={(e) => setPhysicalAmount(Math.max(1, parseInt(e.target.value) || 1))}
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Button className="w-full" onClick={addPhysicalItem} type="button">
-                      Agregar
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  {physicalItems.map((item, idx) => (
-                    <div key={idx} className="flex justify-between items-center p-2 bg-muted rounded text-sm">
-                      <span>{item.product.name} x{item.amount}</span>
-                      <div className="flex items-center gap-2">
-                        <span>₡{(item.product.unit_price * item.amount).toFixed(2)}</span>
-                        <Button variant="ghost" size="icon" onClick={() => removePhysicalItem(idx)}>
-                          <Package className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                  {physicalItems.length === 0 && (
-                    <p className="text-xs text-muted-foreground text-center py-2">
-                      No hay productos agregados
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Servicios */}
-            {activeTab === "service" && (
-              <div className="border rounded-md p-3 space-y-3">
-                <div className="space-y-2">
-                  <Label>Servicio</Label>
-                  <Select
-                    value={selectedServiceProductId}
-                    onValueChange={setSelectedServiceProductId}
-                  >
+            <div className="border rounded-md p-3 space-y-3">
+              <h4 className="font-medium">Productos físicos</h4>
+              <div className="grid grid-cols-12 gap-2 items-end">
+                <div className="col-span-6">
+                  <Label>Producto</Label>
+                  <Select value={selectedPhysicalProductId} onValueChange={setSelectedPhysicalProductId}>
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccione" />
                     </SelectTrigger>
                     <SelectContent>
-                      {serviceProducts.map((p) => (
+                      {physicalProducts.map((p) => (
                         <SelectItem key={p.id} value={p.id}>
-                          {p.name} - ₡{p.unit_price}/mes
+                          {p.name} - ₡{p.unit_price}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label>Período de facturación</Label>
-                  <DateRangePicker
-                    value={serviceDateRange}
-                    onChange={setServiceDateRange}
+                <div className="col-span-4">
+                  <Label>Cantidad</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={physicalAmount}
+                    onChange={(e) => setPhysicalAmount(Math.max(1, parseInt(e.target.value) || 1))}
                   />
                 </div>
-                <Button onClick={addServiceItem} disabled={!selectedServiceProductId} type="button">
-                  Agregar servicio
-                </Button>
-
-                <div className="space-y-1 mt-2">
-                  {serviceItems.map((item, idx) => (
-                    <div key={idx} className="flex justify-between items-center p-2 bg-muted rounded text-sm">
-                      <div>
-                        <div>{item.product.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {new Date(item.startDate).toLocaleDateString()} - {new Date(item.endDate).toLocaleDateString()}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span>₡{item.product.unit_price.toFixed(2)}</span>
-                        <Button variant="ghost" size="icon" onClick={() => removeServiceItem(idx)}>
-                          <Calendar className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                  {serviceItems.length === 0 && (
-                    <p className="text-xs text-muted-foreground text-center py-2">
-                      No hay servicios agregados
-                    </p>
-                  )}
+                <div className="col-span-2">
+                  <Button className="w-full" onClick={addPhysicalItem} type="button">
+                    Agregar
+                  </Button>
                 </div>
               </div>
-            )}
+
+              <div className="space-y-1">
+                {physicalItems.map((item, idx) => (
+                  <div key={idx} className="flex justify-between items-center p-2 bg-muted rounded text-sm">
+                    <span>{item.product.name} x{item.amount}</span>
+                    <div className="flex items-center gap-2">
+                      <span>₡{((item.product?.unit_price ?? 0) * item.amount).toFixed(2)}</span>
+                      <Button variant="ghost" size="sm" onClick={() => removePhysicalItem(idx)} type="button">
+                        Eliminar
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                {physicalItems.length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center py-2">No hay productos agregados</p>
+                )}
+              </div>
+            </div>
+
+            {/* Servicios */}
+            <div className="border rounded-md p-3 space-y-3">
+              <h4 className="font-medium">Servicios</h4>
+              <div>
+                <Label>Servicio</Label>
+                <Select value={selectedServiceProductId} onValueChange={setSelectedServiceProductId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {serviceProducts.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name} - ₡{p.unit_price}/mes
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label>Fecha inicio</Label>
+                  <Input
+                    type="date"
+                    value={serviceStartDate.toISOString().split("T")[0]}
+                    onChange={(e) => setServiceStartDate(new Date(e.target.value))}
+                  />
+                </div>
+                <div>
+                  <Label>Fecha fin</Label>
+                  <Input
+                    type="date"
+                    value={serviceEndDate.toISOString().split("T")[0]}
+                    onChange={(e) => setServiceEndDate(new Date(e.target.value))}
+                  />
+                </div>
+              </div>
+              <Button onClick={addServiceItem} disabled={!selectedServiceProductId} type="button">
+                Agregar servicio
+              </Button>
+
+              <div className="space-y-1">
+                {serviceItems.map((item, idx) => (
+                  <div key={idx} className="flex justify-between items-center p-2 bg-muted rounded text-sm">
+                    <div>
+                      <div>{item.product.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {item.startDate.toLocaleDateString()} - {item.endDate.toLocaleDateString()}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span>₡{(item.product?.unit_price ?? 0).toFixed(2)}</span>
+                      <Button variant="ghost" size="sm" onClick={() => removeServiceItem(idx)} type="button">
+                        Eliminar
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                {serviceItems.length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center py-2">No hay servicios agregados</p>
+                )}
+              </div>
+            </div>
 
             {/* Totales */}
             <div className="space-y-1 text-sm border-t pt-3">
@@ -573,31 +530,25 @@ function FacturacionPage() {
                 </div>
               </div>
 
-              {/* Productos físicos */}
-              {view.physicalProductItems.length > 0 && (
+              {(view.physicalProductItems ?? []).length > 0 && (
                 <div>
                   <h4 className="font-medium mb-2">Productos</h4>
                   <div className="space-y-1">
-                    {view.physicalProductItems.map((item) => (
+                    {(view.physicalProductItems ?? []).map((item) => (
                       <div key={item.id} className="flex justify-between text-sm">
-                        <span>
-                          {item.product?.name ?? item.product_id} x{item.amount}
-                        </span>
-                        <span>
-                          ₡{((item.product?.unit_price ?? 0) * item.amount).toFixed(2)}
-                        </span>
+                        <span>{item.product?.name ?? item.product_id} x{item.amount}</span>
+                        <span>₡{((item.product?.unit_price ?? 0) * (item.amount ?? 1)).toFixed(2)}</span>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* Servicios */}
-              {view.serviceProductItems.length > 0 && (
+              {(view.serviceProductItems ?? []).length > 0 && (
                 <div>
                   <h4 className="font-medium mb-2">Servicios</h4>
                   <div className="space-y-2">
-                    {view.serviceProductItems.map((item) => (
+                    {(view.serviceProductItems ?? []).map((item) => (
                       <div key={item.id} className="text-sm">
                         <div className="flex justify-between">
                           <span>{item.product?.name ?? item.product_id}</span>
@@ -612,18 +563,23 @@ function FacturacionPage() {
                 </div>
               )}
 
-              {/* Totales */}
               <div className="border-t pt-2">
                 {(() => {
-                  const { subtotal, total } = calculateInvoiceTotals(view);
+                  let total = 0;
+                  for (const item of view.physicalProductItems ?? []) {
+                    total += (item.product?.unit_price ?? 0) * (item.amount ?? 1);
+                  }
+                  for (const item of view.serviceProductItems ?? []) {
+                    total += item.product?.unit_price ?? 0;
+                  }
                   const client = view.physicalClient ?? view.legalClient;
                   const isExoneratedView = client?.exonerated ?? false;
-                  const taxesView = isExoneratedView ? 0 : subtotal * 0.13;
+                  const taxesView = isExoneratedView ? 0 : total * 0.13;
                   return (
                     <>
                       <div className="flex justify-between text-sm">
                         <span>Subtotal</span>
-                        <span>₡{subtotal.toFixed(2)}</span>
+                        <span>₡{total.toFixed(2)}</span>
                       </div>
                       {!isExoneratedView && (
                         <div className="flex justify-between text-sm text-muted-foreground">
@@ -633,7 +589,7 @@ function FacturacionPage() {
                       )}
                       <div className="flex justify-between font-bold mt-1">
                         <span>Total</span>
-                        <span>₡{(subtotal + taxesView).toFixed(2)}</span>
+                        <span>₡{(total + taxesView).toFixed(2)}</span>
                       </div>
                     </>
                   );

@@ -54,8 +54,6 @@ export const Route = createFileRoute("/clientes")({
   ),
 });
 
-// ─── Tipos del formulario unificado ───────────────
-
 interface FormBase {
   address: string;
   primary_phone: string;
@@ -104,8 +102,6 @@ const emptyLegal: FormLegal = {
   name: "",
 };
 
-// ─── Helpers de display ───────────────────────────
-
 function getClientDisplayName(c: UnifiedClient): string {
   if (c.tipo === "fisico") return `${c.name} ${c.last_name_1} ${c.last_name_2}`;
   return c.name;
@@ -115,8 +111,6 @@ function getClientDisplayDoc(c: UnifiedClient): string {
   if (c.tipo === "fisico") return c.national_id;
   return c.legal_id;
 }
-
-// ─── Página ───────────────────────────────────────
 
 function ClientesPage() {
   const queryClient = useQueryClient();
@@ -136,7 +130,7 @@ function ClientesPage() {
     staleTime: 30_000,
   });
 
-  const filtered = clients.filter((c) => {
+  const filtered = (clients ?? []).filter((c) => {
     if (!search) return true;
     const term = search.toLowerCase();
     const name = getClientDisplayName(c).toLowerCase();
@@ -146,8 +140,6 @@ function ClientesPage() {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
-
-  // ─── Mutations ──────────────────────────────
 
   const createMutation = useMutation({
     mutationFn: async (data: FormState) => {
@@ -232,8 +224,6 @@ function ClientesPage() {
     },
     onError: (err: Error) => toast.error(err.message),
   });
-
-  // ─── Handlers ───────────────────────────────
 
   const openCreate = () => {
     setEditing(null);
@@ -359,28 +349,18 @@ function ClientesPage() {
               <TableBody>
                 {paged.map((c) => (
                   <TableRow key={c.id}>
-                    <TableCell className="font-medium">
-                      {getClientDisplayName(c)}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">
-                      {getClientDisplayDoc(c)}
-                    </TableCell>
+                    <TableCell className="font-medium">{getClientDisplayName(c)}</TableCell>
+                    <TableCell className="font-mono text-xs">{getClientDisplayDoc(c)}</TableCell>
                     <TableCell className="hidden md:table-cell">
                       <Badge variant={c.tipo === "fisico" ? "default" : "secondary"}>
                         {c.tipo === "fisico" ? "Física" : "Jurídica"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      {c.primary_phone}
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell truncate max-w-[180px]">
-                      {c.address}
-                    </TableCell>
+                    <TableCell className="hidden md:table-cell">{c.primary_phone}</TableCell>
+                    <TableCell className="hidden md:table-cell truncate max-w-[180px]">{c.address}</TableCell>
                     <TableCell>
                       {c.exonerated ? (
-                        <Badge variant="outline" className="text-green-600">
-                          Sí
-                        </Badge>
+                        <Badge variant="outline" className="text-green-600">Sí</Badge>
                       ) : (
                         <Badge variant="outline">No</Badge>
                       )}
@@ -433,20 +413,10 @@ function ClientesPage() {
                 Página {page} de {totalPages} ({filtered.length} clientes)
               </span>
               <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page <= 1}
-                  onClick={() => setPage(page - 1)}
-                >
+                <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
                   Anterior
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page >= totalPages}
-                  onClick={() => setPage(page + 1)}
-                >
+                <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
                   Siguiente
                 </Button>
               </div>
@@ -464,18 +434,10 @@ function ClientesPage() {
 
           {!editing && (
             <div className="flex gap-2">
-              <Button
-                variant={form.tipoCliente === "fisico" ? "default" : "outline"}
-                size="sm"
-                onClick={() => switchTipo("fisico")}
-              >
+              <Button variant={form.tipoCliente === "fisico" ? "default" : "outline"} size="sm" onClick={() => switchTipo("fisico")}>
                 Persona física
               </Button>
-              <Button
-                variant={form.tipoCliente === "juridico" ? "default" : "outline"}
-                size="sm"
-                onClick={() => switchTipo("juridico")}
-              >
+              <Button variant={form.tipoCliente === "juridico" ? "default" : "outline"} size="sm" onClick={() => switchTipo("juridico")}>
                 Persona jurídica
               </Button>
             </div>
@@ -486,97 +448,58 @@ function ClientesPage() {
               <>
                 <div>
                   <Label>Cédula</Label>
-                  <Input
-                    value={form.national_id}
-                    onChange={(e) => setForm({ ...form, national_id: e.target.value })}
-                  />
+                  <Input value={form.national_id} onChange={(e) => setForm({ ...form, national_id: e.target.value })} />
                 </div>
                 <div>
                   <Label>Nombre</Label>
-                  <Input
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  />
+                  <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
                 </div>
                 <div>
                   <Label>Primer apellido</Label>
-                  <Input
-                    value={form.last_name_1}
-                    onChange={(e) => setForm({ ...form, last_name_1: e.target.value })}
-                  />
+                  <Input value={form.last_name_1} onChange={(e) => setForm({ ...form, last_name_1: e.target.value })} />
                 </div>
                 <div>
                   <Label>Segundo apellido</Label>
-                  <Input
-                    value={form.last_name_2}
-                    onChange={(e) => setForm({ ...form, last_name_2: e.target.value })}
-                  />
+                  <Input value={form.last_name_2} onChange={(e) => setForm({ ...form, last_name_2: e.target.value })} />
                 </div>
               </>
             ) : (
               <>
                 <div>
                   <Label>Cédula jurídica</Label>
-                  <Input
-                    value={form.legal_id}
-                    onChange={(e) => setForm({ ...form, legal_id: e.target.value })}
-                  />
+                  <Input value={form.legal_id} onChange={(e) => setForm({ ...form, legal_id: e.target.value })} />
                 </div>
                 <div className="sm:col-span-2">
                   <Label>Nombre de empresa</Label>
-                  <Input
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  />
+                  <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
                 </div>
               </>
             )}
 
             <div>
               <Label>Teléfono principal</Label>
-              <Input
-                value={form.primary_phone}
-                onChange={(e) => setFormField("primary_phone", e.target.value)}
-              />
+              <Input value={form.primary_phone} onChange={(e) => setFormField("primary_phone", e.target.value)} />
             </div>
             <div>
               <Label>Teléfono secundario</Label>
-              <Input
-                value={form.secondary_phone}
-                onChange={(e) => setFormField("secondary_phone", e.target.value)}
-              />
+              <Input value={form.secondary_phone} onChange={(e) => setFormField("secondary_phone", e.target.value)} />
             </div>
             <div className="sm:col-span-2">
               <Label>Correo electrónico</Label>
-              <Input
-                type="email"
-                value={form.email}
-                onChange={(e) => setFormField("email", e.target.value)}
-              />
+              <Input type="email" value={form.email} onChange={(e) => setFormField("email", e.target.value)} />
             </div>
             <div className="sm:col-span-2">
               <Label>Dirección</Label>
-              <Input
-                value={form.address}
-                onChange={(e) => setFormField("address", e.target.value)}
-              />
+              <Input value={form.address} onChange={(e) => setFormField("address", e.target.value)} />
             </div>
             <div className="sm:col-span-2 flex items-center gap-2">
-              <Checkbox
-                id="exonerated"
-                checked={form.exonerated}
-                onCheckedChange={(checked) => setFormField("exonerated", checked === true)}
-              />
-              <Label htmlFor="exonerated" className="cursor-pointer">
-                Cliente exonerado de impuestos
-              </Label>
+              <Checkbox id="exonerated" checked={form.exonerated} onCheckedChange={(checked) => setFormField("exonerated", checked === true)} />
+              <Label htmlFor="exonerated" className="cursor-pointer">Cliente exonerado de impuestos</Label>
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>
-              Cancelar
-            </Button>
+            <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>Cancelar</Button>
             <Button onClick={submit} disabled={saving}>
               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {editing ? "Guardar" : "Registrar"}
@@ -598,9 +521,7 @@ function ClientesPage() {
                 <span>{view.tipo === "fisico" ? "Persona física" : "Persona jurídica"}</span>
               </div>
               <div className="flex justify-between gap-4">
-                <span className="text-muted-foreground">
-                  {view.tipo === "fisico" ? "Cédula" : "Cédula jurídica"}
-                </span>
+                <span className="text-muted-foreground">{view.tipo === "fisico" ? "Cédula" : "Cédula jurídica"}</span>
                 <span className="font-mono">{getClientDisplayDoc(view)}</span>
               </div>
               {view.tipo === "fisico" && (

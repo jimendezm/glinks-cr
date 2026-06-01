@@ -5,7 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { physicalClientsApi, legalClientsApi } from "@/services/api/clientes";
 import { productosApi } from "@/services/api/productos";
-import { facturasApi, calculateInvoiceTotals } from "@/services/api/facturas";
+import { facturasApi } from "@/services/api/facturas";
 import { fetchAllMaintenances } from "@/services/api/mantenimientos";
 import { Users, Wrench, Package, Receipt } from "lucide-react";
 
@@ -18,49 +18,75 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 function Dashboard() {
+  // Clientes físicos
   const { data: physicalPage, isLoading: loadingPhysical } = useQuery({
     queryKey: ["clientes-fisicos", "count"],
     queryFn: () => physicalClientsApi.list(1, 1),
   });
 
+  // Clientes jurídicos
   const { data: legalPage, isLoading: loadingLegal } = useQuery({
     queryKey: ["clientes-juridicos", "count"],
     queryFn: () => legalClientsApi.list(1, 1),
   });
 
+  // Productos
   const { data: productsPage, isLoading: loadingProducts } = useQuery({
     queryKey: ["productos", "list"],
     queryFn: () => productosApi.list(1, 200),
   });
 
+  // Facturas
   const { data: invoicesPage, isLoading: loadingInvoices } = useQuery({
     queryKey: ["facturas", "list"],
     queryFn: () => facturasApi.list(1, 100),
   });
 
+  // Mantenimientos
   const { data: mantData, isLoading: loadingMant } = useQuery({
     queryKey: ["mantenimientos", "count"],
     queryFn: () => fetchAllMaintenances(1, 1),
   });
 
-  const loading =
-    loadingPhysical ||
-    loadingLegal ||
-    loadingProducts ||
-    loadingInvoices ||
-    loadingMant;
+  const loading = loadingPhysical || loadingLegal || loadingProducts || loadingInvoices || loadingMant;
 
-  const totalClients = (physicalPage?.total ?? 0) + (legalPage?.total ?? 0);
+  // ✅ VALORES SEGUROS - siempre usar arrays vacíos como fallback
+  const physicalTotal = physicalPage?.total ?? 0;
+  const legalTotal = legalPage?.total ?? 0;
+  const totalClients = physicalTotal + legalTotal;
+
   const totalMaintenances = mantData?.total ?? 0;
-  const totalProducts = productsPage?.data.length ?? 0;
-  const billableProducts = productsPage?.data.filter((p) => p.billable).length ?? 0;
 
-  // Calcular total facturado en facturas activas (sin anuladas)
-  const totalBilled =
-    invoicesPage?.data.reduce((sum, inv) => {
-      const { total } = calculateInvoiceTotals(inv);
-      return sum + total;
-    }, 0) ?? 0;
+  const productsList = productsPage?.data ?? [];
+  const totalProducts = productsList.length;
+  const billableProducts = productsList.filter((p) => p.billable === true).length;
+
+  const invoicesList = invoicesPage?.data ?? [];
+  // ✅ Calcular total facturado sin usar reduce sobre undefined
+  let totalBilled = 0;
+  for (let i = 0; i < invoicesList.length; i++) {
+    const inv = invoicesList[i];
+    // Calcular subtotal de productos físicos
+    let subtotal = 0;
+    if (inv.physicalProductItems) {
+      for (let j = 0; j < inv.physicalProductItems.length; j++) {
+        const item = inv.physicalProductItems[j];
+        if (item?.product?.unit_price) {
+          subtotal += item.product.unit_price * (item.amount ?? 1);
+        }
+      }
+    }
+    // Calcular subtotal de servicios
+    if (inv.serviceProductItems) {
+      for (let j = 0; j < inv.serviceProductItems.length; j++) {
+        const item = inv.serviceProductItems[j];
+        if (item?.product?.unit_price) {
+          subtotal += item.product.unit_price;
+        }
+      }
+    }
+    totalBilled += subtotal;
+  }
 
   const stats = [
     {
@@ -124,13 +150,35 @@ function Dashboard() {
               <Skeleton key={i} className="h-14 w-full rounded-md" />
             ))}
           </div>
-        ) : invoicesPage && invoicesPage.data.length > 0 ? (
+        ) : invoicesList.length > 0 ? (
           <div className="space-y-2">
-            {invoicesPage.data.slice(0, 5).map((inv) => {
-              const clientName = inv.physicalClient
-                ? `${inv.physicalClient.name} ${inv.physicalClient.last_name_1}`
-                : inv.legalClient?.name ?? "—";
-              const { total } = calculateInvoiceTotals(inv);
+            {invoicesList.slice(0, 5).map((inv) => {
+              let clientName = "—";
+              if (inv.physicalClient) {
+                clientName = `${inv.physicalClient.name} ${inv.physicalClient.last_name_1}`;
+              } else if (inv.legalClient) {
+                clientName = inv.legalClient.name;
+              }
+              
+              // Calcular total de esta factura
+              let subtotal = 0;
+              if (inv.physicalProductItems) {
+                for (let j = 0; j < inv.physicalProductItems.length; j++) {
+                  const item = inv.physicalProductItems[j];
+                  if (item?.product?.unit_price) {
+                    subtotal += item.product.unit_price * (item.amount ?? 1);
+                  }
+                }
+              }
+              if (inv.serviceProductItems) {
+                for (let j = 0; j < inv.serviceProductItems.length; j++) {
+                  const item = inv.serviceProductItems[j];
+                  if (item?.product?.unit_price) {
+                    subtotal += item.product.unit_price;
+                  }
+                }
+              }
+              
               return (
                 <div
                   key={inv.id}
@@ -141,7 +189,7 @@ function Dashboard() {
                     <div className="text-xs text-muted-foreground">{clientName}</div>
                   </div>
                   <div className="text-right">
-                    <div className="font-semibold">₡{total.toFixed(2)}</div>
+                    <div className="font-semibold">₡{subtotal.toFixed(2)}</div>
                   </div>
                 </div>
               );

@@ -1,7 +1,7 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Users, Wrench, Package, Receipt, LogOut, Wifi, WifiOff } from "lucide-react";
+import { LayoutDashboard, Users, Wrench, Package, Receipt, LogOut, Wifi, WifiOff, Cloud, CloudOff, RefreshCw } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { useOnline } from "@/hooks/useOnline";
+import { useSync } from "@/hooks/useSync";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useState, type ReactNode } from "react";
@@ -14,7 +14,6 @@ interface NavItem {
   allowedRoles: Role[];
 }
 
-// Configuración de menús con roles permitidos
 const allItems: NavItem[] = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, allowedRoles: ["admin"] },
   { to: "/clientes", label: "Clientes", icon: Users, allowedRoles: ["admin", "tecnico"] },
@@ -25,17 +24,15 @@ const allItems: NavItem[] = [
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
-  const { online, toggleForce } = useOnline();
+  const { isOnline, pendingCount, isSyncing, forceSync } = useSync();
   const path = useRouterState({ select: (s) => s.location.pathname });
   const [open, setOpen] = useState(false);
 
-  // Filtrar items según el rol del usuario
   const items = allItems.filter((item) => {
     if (!user) return false;
     return item.allowedRoles.includes(user.role);
   });
 
-  // Obtener nombre para mostrar
   const displayName = user?.name || user?.username || "Usuario";
   const roleLabel = user?.role === "admin" ? "Administrador" : "Técnico";
 
@@ -74,6 +71,52 @@ export function AppLayout({ children }: { children: ReactNode }) {
         <div className="p-4 border-t border-border bg-card">
           <div className="text-sm font-medium truncate">{displayName}</div>
           <div className="text-xs text-muted-foreground mb-3">{roleLabel}</div>
+          
+          {/* Estado de sincronización */}
+          <div className="mb-3 p-2 rounded-md bg-muted/50">
+            <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center gap-1">
+                {isOnline ? (
+                  <>
+                    <Wifi className="h-3 w-3 text-green-600" />
+                    <span className="text-green-600">En línea</span>
+                  </>
+                ) : (
+                  <>
+                    <WifiOff className="h-3 w-3 text-destructive" />
+                    <span className="text-destructive">Sin conexión</span>
+                  </>
+                )}
+              </div>
+              {pendingCount > 0 && (
+                <Badge variant="outline" className="text-xs">
+                  <CloudOff className="h-3 w-3 mr-1" />
+                  {pendingCount} pendiente(s)
+                </Badge>
+              )}
+              {isSyncing && (
+                <RefreshCw className="h-3 w-3 animate-spin" />
+              )}
+            </div>
+            {!isOnline && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Los datos se guardarán localmente y se sincronizarán al recuperar conexión.
+              </p>
+            )}
+            {pendingCount > 0 && isOnline && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="w-full mt-2 text-xs h-7"
+                onClick={forceSync}
+                disabled={isSyncing}
+              >
+                <Cloud className="h-3 w-3 mr-1" />
+                Sincronizar ahora
+              </Button>
+            )}
+          </div>
+          
           <Button variant="outline" size="sm" className="w-full" onClick={logout}>
             <LogOut className="h-4 w-4 mr-2" /> Salir
           </Button>
@@ -91,16 +134,26 @@ export function AppLayout({ children }: { children: ReactNode }) {
             ☰
           </Button>
           <div className="flex-1" />
-          <button
-            onClick={toggleForce}
-            className="flex items-center gap-2"
-            title="Click para simular conexión"
-          >
-            <Badge variant={online ? "default" : "destructive"} className="gap-1">
-              {online ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
-              {online ? "En línea" : "Sin conexión"}
+          
+          {/* Indicador de estado en móvil */}
+          <div className="flex items-center gap-2">
+            {!isOnline && (
+              <Badge variant="destructive" className="gap-1 md:hidden">
+                <WifiOff className="h-3 w-3" />
+                Offline
+              </Badge>
+            )}
+            {pendingCount > 0 && (
+              <Badge variant="outline" className="gap-1">
+                <CloudOff className="h-3 w-3" />
+                {pendingCount}
+              </Badge>
+            )}
+            <Badge variant={isOnline ? "default" : "destructive"} className="gap-1 hidden md:flex">
+              {isOnline ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+              {isOnline ? "En línea" : "Sin conexión"}
             </Badge>
-          </button>
+          </div>
         </header>
         <main className="flex-1 p-4 md:p-6 overflow-auto">{children}</main>
       </div>

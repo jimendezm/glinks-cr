@@ -9,7 +9,6 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN ?? "24h";
 export async function registerUser(
   username: string,
   password: string,
-  name: string,
   role: "admin" | "tecnico",
 ) {
   const existing = await prisma.user.findUnique({ where: { username } });

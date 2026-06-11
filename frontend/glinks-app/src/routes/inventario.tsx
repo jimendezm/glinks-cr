@@ -25,6 +25,7 @@ import { Plus, Pencil, Trash2, Search, Loader2 } from "lucide-react";
 import {
   showSuccess, showError, showConfirmDelete, showCannotDelete, showToast,
 } from "@/lib/swal";
+import { saveOfflineRecord, checkConnection } from "@/services/api/syncService";
 
 const emptyForm: CreateProductInput = {
   name: "",
@@ -55,8 +56,6 @@ export default function InventarioPage() {
     [search]
   );
 
-  // ── Helpers ───────────────────────────────────────
-
   const isProductInInvoices = (productId: string): boolean =>
     invoices.some(
       (inv) =>
@@ -71,10 +70,18 @@ export default function InventarioPage() {
         inv.serviceProductItems?.some((item) => item.product_id === productId)
     ).length;
 
-  // ── Mutaciones ────────────────────────────────────
-
   const createMutation = useMutation(
-    (data: CreateProductInput) => productosApi.create(data),
+    async (data: CreateProductInput) => {
+      const isOnline = await checkConnection();
+      
+      if (!isOnline) {
+        const tempId = `offline_product_${Date.now()}`;
+        await saveOfflineRecord('product', 'CREATE', tempId, data);
+        return { id: tempId, ...data } as any;
+      }
+      
+      return productosApi.create(data);
+    },
     {
       onSuccess: () => {
         refetch();
@@ -87,8 +94,16 @@ export default function InventarioPage() {
   );
 
   const updateMutation = useMutation(
-    ({ id, data }: { id: string; data: Partial<CreateProductInput> }) =>
-      productosApi.update(id, data),
+    async ({ id, data }: { id: string; data: Partial<CreateProductInput> }) => {
+      const isOnline = await checkConnection();
+      
+      if (!isOnline) {
+        await saveOfflineRecord('product', 'UPDATE', id, data);
+        return { id, ...data } as any;
+      }
+      
+      return productosApi.update(id, data);
+    },
     {
       onSuccess: () => {
         refetch();
@@ -101,6 +116,13 @@ export default function InventarioPage() {
 
   const deleteMutation = useMutation(
     async (product: Product) => {
+      const isOnline = await checkConnection();
+      
+      if (!isOnline) {
+        await saveOfflineRecord('product', 'DELETE', product.id, product);
+        return { message: "Producto marcado para eliminación offline" };
+      }
+      
       if (isProductInInvoices(product.id)) throw new Error("PRODUCT_HAS_INVOICES");
       const inMaintenances = await checkProductInMaintenances(product.id);
       if (inMaintenances) throw new Error("PRODUCT_HAS_MAINTENANCES");
@@ -129,8 +151,6 @@ export default function InventarioPage() {
     if (confirmed) deleteMutation.mutate(product);
   };
 
-  // ── Datos filtrados ───────────────────────────────
-
   const products = (pageData?.data ?? []).filter(
     (p) => filterType === "all" || p.type === filterType
   );
@@ -139,8 +159,6 @@ export default function InventarioPage() {
   const allProducts = pageData?.data ?? [];
   const billableCount = allProducts.filter((p) => p.billable === true).length;
   const nonBillableCount = totalProducts - billableCount;
-
-  // ── Handlers de modal ─────────────────────────────
 
   const openCreate = () => {
     setEditing(null);
@@ -185,7 +203,6 @@ export default function InventarioPage() {
         </Button>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
         <Card className="p-4">
           <div className="text-xs text-muted-foreground">Total productos</div>
@@ -201,7 +218,6 @@ export default function InventarioPage() {
         </Card>
       </div>
 
-      {/* Table */}
       <Card className="p-4">
         <div className="grid sm:grid-cols-2 gap-3 mb-4">
           <div className="relative">
@@ -286,7 +302,6 @@ export default function InventarioPage() {
         )}
       </Card>
 
-      {/* Modal */}
       <Dialog open={open} onOpenChange={(v) => !v && setOpen(false)}>
         <DialogContent>
           <DialogHeader>

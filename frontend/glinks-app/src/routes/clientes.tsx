@@ -34,8 +34,7 @@ import type { UnifiedClient } from "@/models";
 import { Plus, Pencil, Trash2, Eye, Search, Loader2 } from "lucide-react";
 import { showSuccess, showError, showConfirmDelete, showCannotDelete, showToast } from "@/lib/swal";
 import { fetchAllMaintenances } from "@/services/api/mantenimientos";
-
-// ─── Tipos de formulario ──────────────────────────────
+import { saveOfflineRecord, checkConnection } from "@/services/api/syncService";
 
 interface FormBase {
   address: string;
@@ -95,8 +94,6 @@ function getClientDisplayDoc(c: UnifiedClient): string {
   return c.legal_id;
 }
 
-// ─── Componente ───────────────────────────────────────
-
 export default function ClientesPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -107,7 +104,6 @@ export default function ClientesPage() {
   const [form, setForm] = useState<FormState>(emptyPhysical);
   const [view, setView] = useState<UnifiedClient | null>(null);
 
-  // ── Datos ──────────────────────────────────────────
   const { data: clients = [], loading: isLoading, refetch: refetchClients } = useFetch(
     () => fetchAllClients(),
     []
@@ -124,8 +120,6 @@ export default function ClientesPage() {
     []
   );
   const maintenances = maintenancesData?.data ?? [];
-
-  // ── Helpers facturación / mantenimientos ──────────
 
   const hasInvoices = (client: UnifiedClient): boolean =>
     invoices.some((inv) =>
@@ -155,10 +149,10 @@ export default function ClientesPage() {
         : m.legal_client_id === client.id
     ).length;
 
-  // ── Mutaciones ────────────────────────────────────
-
   const createMutation = useMutation(
     async (data: FormState) => {
+      const isOnline = await checkConnection();
+      
       if (data.tipoCliente === "fisico") {
         if (!/^[1-9][0-9]{8}$/.test(data.national_id))
           throw new Error("La cédula debe tener 9 dígitos y no comenzar con 0");
@@ -178,6 +172,17 @@ export default function ClientesPage() {
           address: data.address,
           exonerated: data.exonerated,
         };
+        
+        if (!isOnline) {
+          const tempId = `offline_client_${Date.now()}`;
+          await saveOfflineRecord('client', 'CREATE', tempId, {
+            ...data,
+            tipo: 'fisico',
+            offlineId: tempId
+          });
+          return { id: tempId, ...input } as any;
+        }
+        
         return physicalClientsApi.create(input);
       } else {
         if (!/^[1-9][0-9]{9}$/.test(data.legal_id))
@@ -196,6 +201,17 @@ export default function ClientesPage() {
           address: data.address,
           exonerated: data.exonerated,
         };
+        
+        if (!isOnline) {
+          const tempId = `offline_client_${Date.now()}`;
+          await saveOfflineRecord('client', 'CREATE', tempId, {
+            ...data,
+            tipo: 'juridico',
+            offlineId: tempId
+          });
+          return { id: tempId, ...input } as any;
+        }
+        
         return legalClientsApi.create(input);
       }
     },
@@ -217,6 +233,8 @@ export default function ClientesPage() {
 
   const updateMutation = useMutation(
     async ({ id, data }: { id: string; data: FormState }) => {
+      const isOnline = await checkConnection();
+      
       if (data.tipoCliente === "fisico") {
         if (data.national_id && !/^[1-9][0-9]{8}$/.test(data.national_id))
           throw new Error("La cédula debe tener 9 dígitos y no comenzar con 0");
@@ -236,6 +254,15 @@ export default function ClientesPage() {
           address: data.address,
           exonerated: data.exonerated,
         };
+        
+        if (!isOnline) {
+          await saveOfflineRecord('client', 'UPDATE', id, {
+            ...data,
+            tipo: 'fisico'
+          });
+          return { id, ...input } as any;
+        }
+        
         return physicalClientsApi.update(id, input);
       } else {
         if (data.legal_id && !/^[1-9][0-9]{9}$/.test(data.legal_id))
@@ -254,6 +281,15 @@ export default function ClientesPage() {
           address: data.address,
           exonerated: data.exonerated,
         };
+        
+        if (!isOnline) {
+          await saveOfflineRecord('client', 'UPDATE', id, {
+            ...data,
+            tipo: 'juridico'
+          });
+          return { id, ...input } as any;
+        }
+        
         return legalClientsApi.update(id, input);
       }
     },
@@ -271,7 +307,14 @@ export default function ClientesPage() {
   );
 
   const deleteMutation = useMutation(
-    (c: UnifiedClient) => {
+    async (c: UnifiedClient) => {
+      const isOnline = await checkConnection();
+      
+      if (!isOnline) {
+        await saveOfflineRecord('client', 'DELETE', c.id, { tipo: c.tipo });
+        return { message: "Cliente marcado para eliminación offline" };
+      }
+      
       if (c.tipo === "fisico") return physicalClientsApi.remove(c.id);
       return legalClientsApi.remove(c.id);
     },
@@ -294,8 +337,6 @@ export default function ClientesPage() {
       },
     }
   );
-
-  // ── Handlers ─────────────────────────────────────
 
   const handleDelete = async (client: UnifiedClient) => {
     const invoiceCount = getInvoiceCount(client);
@@ -380,8 +421,6 @@ export default function ClientesPage() {
     }
   };
 
-  // ── Paginación / filtro ───────────────────────────
-
   const filtered = (clients ?? []).filter((c) => {
     if (!search) return true;
     const term = search.toLowerCase();
@@ -395,8 +434,6 @@ export default function ClientesPage() {
   const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   const saving = createMutation.isPending || updateMutation.isPending;
-
-  // ── Render ────────────────────────────────────────
 
   return (
     <div className="space-y-5">
@@ -511,7 +548,6 @@ export default function ClientesPage() {
         )}
       </Card>
 
-      {/* FORM MODAL */}
       <Dialog open={open} onOpenChange={(v) => !v && setOpen(false)}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -597,7 +633,6 @@ export default function ClientesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* VIEW MODAL */}
       <Dialog open={!!view} onOpenChange={(v) => !v && setView(null)}>
         <DialogContent>
           <DialogHeader>

@@ -16,13 +16,13 @@ let syncInterval: NodeJS.Timeout | null = null;
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {
     isOnline = true;
-    console.log('🟢 [Sync] Conexión restablecida, iniciando sincronización...');
+    console.log('[Sync] Conexión restablecida, iniciando sincronización...');
     startSync();
   });
   
   window.addEventListener('offline', () => {
     isOnline = false;
-    console.log('🔴 [Sync] Conexión perdida, modo offline activado');
+    console.log('[Sync] Conexión perdida, modo offline activado');
   });
 }
 
@@ -42,7 +42,8 @@ export async function checkConnection(): Promise<boolean> {
   
   lastConnectionCheck = now;
   
- const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+  const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+  
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 3000);
@@ -67,7 +68,7 @@ export async function saveOfflineRecord(
   id: string,
   data: any
 ): Promise<void> {
-  console.log(`📦 [Sync] Guardando en cola: ${action} ${entity} - ${id}`);
+  console.log(`[Sync] Guardando en cola: ${action} ${entity} - ${id}`);
   
   await db.syncQueue.add({
     action,
@@ -80,7 +81,8 @@ export async function saveOfflineRecord(
   
   await saveOfflineData(entity, id, data, action);
   
-  console.log(`✅ [Sync] Registro en cola: ${await db.syncQueue.count()} pendientes`);
+  const count = await db.syncQueue.count();
+  console.log(`[Sync] Registro en cola: ${count} pendientes`);
 }
 
 async function saveOfflineData(entity: string, id: string, data: any, action: string): Promise<void> {
@@ -138,17 +140,17 @@ export async function getOfflineData(
 export async function startSync(): Promise<{ success: number; failed: number }> {
   const isOnlineNow = await checkConnection();
   if (!isOnlineNow) {
-    console.log('📡 [Sync] Sin conexión, no se puede sincronizar');
+    console.log('[Sync] Sin conexión, no se puede sincronizar');
     return { success: 0, failed: 0 };
   }
   
   if (syncInProgress) {
-    console.log('🔄 [Sync] Sincronización ya en curso...');
+    console.log('[Sync] Sincronización ya en curso...');
     return { success: 0, failed: 0 };
   }
   
   syncInProgress = true;
-  console.log('🚀 [Sync] Iniciando sincronización de datos pendientes...');
+  console.log('[Sync] Iniciando sincronización de datos pendientes...');
   
   let success = 0;
   let failed = 0;
@@ -156,11 +158,11 @@ export async function startSync(): Promise<{ success: number; failed: number }> 
   try {
     const queueItems = await db.syncQueue.orderBy('createdAt').toArray();
     
-    console.log(`📋 [Sync] ${queueItems.length} registros pendientes`);
+    console.log(`[Sync] ${queueItems.length} registros pendientes`);
     
     for (const item of queueItems) {
       try {
-        console.log(`📤 [Sync] Sincronizando ${item.action} ${item.entity} ${item.entityId}`);
+        console.log(`[Sync] Sincronizando ${item.action} ${item.entity} ${item.entityId}`);
         
         const token = getToken();
         if (!token) {
@@ -195,7 +197,7 @@ export async function startSync(): Promise<{ success: number; failed: number }> 
             result = await syncDeleteProduct(item.entityId);
             break;
           default:
-            console.log(`⚠️ [Sync] Acción no soportada: ${item.action}_${item.entity}`);
+            console.log(`[Sync] Acción no soportada: ${item.action}_${item.entity}`);
             result = true;
         }
         
@@ -203,14 +205,14 @@ export async function startSync(): Promise<{ success: number; failed: number }> 
           await db.syncQueue.delete(item.id!);
           await markAsSynced(item.entity, item.entityId);
           success++;
-          console.log(`✅ [Sync] Sincronizado: ${item.entityId}`);
+          console.log(`[Sync] Sincronizado: ${item.entityId}`);
         } else {
           failed++;
           throw new Error('Falló la sincronización');
         }
         
       } catch (error) {
-        console.error(`❌ [Sync] Error sincronizando ${item.entityId}:`, error);
+        console.error(`[Sync] Error sincronizando ${item.entityId}:`, error);
         failed++;
         
         await db.syncQueue.update(item.id!, {
@@ -219,9 +221,9 @@ export async function startSync(): Promise<{ success: number; failed: number }> 
       }
     }
     
-    console.log(`✅ [Sync] Sincronización completada: ${success} éxitos, ${failed} fallos`);
+    console.log(`[Sync] Sincronización completada: ${success} éxitos, ${failed} fallos`);
   } catch (error) {
-    console.error('❌ [Sync] Error durante sincronización:', error);
+    console.error('[Sync] Error durante sincronización:', error);
   } finally {
     syncInProgress = false;
   }
@@ -417,5 +419,5 @@ export async function clearOfflineData(): Promise<void> {
   await db.offlineMaintenances.clear();
   await db.offlineInvoices.clear();
   await db.syncQueue.clear();
-  console.log('🧹 [Sync] Datos offline limpiados');
+  console.log('[Sync] Datos offline limpiados');
 }

@@ -22,6 +22,7 @@ import type { Invoice, Product } from "@/models";
 import { Plus, Eye, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { addDays } from "date-fns";
+import { saveOfflineRecord, checkConnection } from "@/services/api/syncService";
 
 interface PhysicalCartItem {
   productId: string;
@@ -148,6 +149,7 @@ export default function FacturacionPage() {
       if (physicalItems.length === 0 && serviceItems.length === 0)
         throw new Error("Agregue al menos un producto o servicio");
 
+      const isOnline = await checkConnection();
       const physicalProductItems = physicalItems.map((item) => ({
         productId: item.productId,
         amount: item.amount,
@@ -157,6 +159,17 @@ export default function FacturacionPage() {
         startDate: item.startDate,
         endDate: item.endDate,
       }));
+
+      if (!isOnline) {
+        const tempId = `offline_invoice_${Date.now()}`;
+        await saveOfflineRecord('invoice', 'CREATE', tempId, {
+          clientId,
+          clientType: selectedClient.tipo,
+          physicalProductItems,
+          serviceProductItems,
+        });
+        return { id: tempId } as any;
+      }
 
       if (selectedClient.tipo === "fisico") {
         return facturasApi.createPhysical({ physicalClientId: clientId, physicalProductItems, serviceProductItems });

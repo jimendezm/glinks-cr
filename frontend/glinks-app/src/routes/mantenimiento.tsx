@@ -22,6 +22,7 @@ import {
 } from "@/services/api/mantenimientos";
 import { Plus, Loader2, Trash2, Package } from "lucide-react";
 import { toast } from "sonner";
+import { saveOfflineRecord, checkConnection } from "@/services/api/syncService";
 
 interface MaintenanceProductInput {
   productId: string;
@@ -63,7 +64,6 @@ export default function MantenimientoPage() {
     []
   );
   
-  // ✅ Garantizar que mantList siempre sea un array, incluso si mantData es null
   const mantList = mantData?.data ?? [];
   const safeClients = clients ?? [];
 
@@ -132,6 +132,7 @@ export default function MantenimientoPage() {
       if (!data.clientId || !data.clientType)
         throw new Error("Debe seleccionar un cliente");
 
+      const isOnline = await checkConnection();
       const input: CreateMaintenanceInput = {
         description: data.description,
         maintenanceProducts: data.products.map((p) => ({
@@ -139,6 +140,16 @@ export default function MantenimientoPage() {
           amount: p.amount,
         })),
       };
+
+      if (!isOnline) {
+        const tempId = `offline_maintenance_${Date.now()}`;
+        await saveOfflineRecord('maintenance', 'CREATE', tempId, {
+          ...input,
+          clientId: data.clientId,
+          clientType: data.clientType
+        });
+        return { id: tempId, ...input } as any;
+      }
 
       if (data.clientType === "fisico") {
         return mantenimientosApi.createPhysical({ ...input, physicalClientId: data.clientId });
@@ -258,7 +269,6 @@ export default function MantenimientoPage() {
         )}
       </Card>
 
-      {/* El resto del componente (Dialog) se mantiene igual */}
       <Dialog open={open} onOpenChange={(v) => !v && setOpen(false)}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>

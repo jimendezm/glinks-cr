@@ -1,6 +1,5 @@
 import Dexie, { Table } from 'dexie';
 
-// Definir tipos para las tablas offline
 export interface OfflineClient {
   id: string;
   tipo: 'fisico' | 'juridico';

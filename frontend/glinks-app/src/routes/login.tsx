@@ -34,9 +34,22 @@ export default function LoginPage() {
       const result = await login(username, password, remember);
       
       if (!result.ok) {
-        // Mostrar error con SweetAlert
-        showError(result.error ?? "Credenciales inválidas", "Error de autenticación");
-        setError(result.error ?? "Credenciales inválidas");
+        // Mostrar error específico según el mensaje
+        let errorMsg = result.error ?? "Credenciales inválidas";
+        
+        // Personalizar mensajes de error comunes
+        if (errorMsg.includes("12") || errorMsg.toLowerCase().includes("length")) {
+          errorMsg = "La contraseña debe tener al menos 12 caracteres";
+        } else if (errorMsg.includes("invalid") || errorMsg.includes("credencial")) {
+          errorMsg = "Usuario o contraseña incorrectos";
+        } else if (errorMsg.includes("network") || errorMsg.includes("fetch")) {
+          errorMsg = "Error de conexión con el servidor. Verifique su internet.";
+        } else if (errorMsg.includes("500") || errorMsg.includes("internal")) {
+          errorMsg = "Error interno del servidor. Intente más tarde.";
+        }
+        
+        showError(errorMsg, "Error de autenticación");
+        setError(errorMsg);
       } else {
         showToast("Bienvenido al sistema", "success");
         navigate("/dashboard", { replace: true });
@@ -91,7 +104,7 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={loading}
                 autoComplete="current-password"
-                placeholder="Ingrese su contraseña"
+                placeholder="Ingrese su contraseña (mínimo 12 caracteres)"
                 className="pr-10"
               />
               <button
@@ -107,8 +120,22 @@ export default function LoginPage() {
                 )}
               </button>
             </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              La contraseña debe tener al menos 12 caracteres
+            </p>
           </div>
           
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="remember"
+              checked={remember}
+              onCheckedChange={(checked) => setRemember(!!checked)}
+              disabled={loading}
+            />
+            <Label htmlFor="remember" className="text-sm font-normal cursor-pointer">
+              Recordarme
+            </Label>
+          </div>
           
           {error && (
             <p className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">

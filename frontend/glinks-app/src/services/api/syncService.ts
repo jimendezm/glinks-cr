@@ -16,13 +16,13 @@ let syncInterval: NodeJS.Timeout | null = null;
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {
     isOnline = true;
-    console.log('[Sync] Conexión restablecida, iniciando sincronización...');
+    console.log('🟢 [Sync] Conexión restablecida, iniciando sincronización...');
     startSync();
   });
   
   window.addEventListener('offline', () => {
     isOnline = false;
-    console.log('[Sync] Conexión perdida, modo offline activado');
+    console.log('🔴 [Sync] Conexión perdida, modo offline activado');
   });
 }
 
@@ -42,7 +42,7 @@ export async function checkConnection(): Promise<boolean> {
   
   lastConnectionCheck = now;
   
-  const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+  const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
   
   try {
     const controller = new AbortController();
@@ -68,7 +68,7 @@ export async function saveOfflineRecord(
   id: string,
   data: any
 ): Promise<void> {
-  console.log(`[Sync] Guardando en cola: ${action} ${entity} - ${id}`);
+  console.log(`📦 [Sync] Guardando en cola: ${action} ${entity} - ${id}`);
   
   await db.syncQueue.add({
     action,
@@ -82,7 +82,7 @@ export async function saveOfflineRecord(
   await saveOfflineData(entity, id, data, action);
   
   const count = await db.syncQueue.count();
-  console.log(`[Sync] Registro en cola: ${count} pendientes`);
+  console.log(`✅ [Sync] Registro en cola: ${count} pendientes`);
 }
 
 async function saveOfflineData(entity: string, id: string, data: any, action: string): Promise<void> {
@@ -94,9 +94,14 @@ async function saveOfflineData(entity: string, id: string, data: any, action: st
   };
   
   switch (entity) {
-    case 'client':
-      await db.offlineClients.put(offlineRecord);
+    case 'client': {
+      const clientRecord: OfflineClient = {
+        ...offlineRecord,
+        tipo: data.tipo || 'fisico',
+      };
+      await db.offlineClients.put(clientRecord);
       break;
+    }
     case 'product':
       await db.offlineProducts.put(offlineRecord);
       break;
@@ -140,17 +145,17 @@ export async function getOfflineData(
 export async function startSync(): Promise<{ success: number; failed: number }> {
   const isOnlineNow = await checkConnection();
   if (!isOnlineNow) {
-    console.log('[Sync] Sin conexión, no se puede sincronizar');
+    console.log('📡 [Sync] Sin conexión, no se puede sincronizar');
     return { success: 0, failed: 0 };
   }
   
   if (syncInProgress) {
-    console.log('[Sync] Sincronización ya en curso...');
+    console.log('🔄 [Sync] Sincronización ya en curso...');
     return { success: 0, failed: 0 };
   }
   
   syncInProgress = true;
-  console.log('[Sync] Iniciando sincronización de datos pendientes...');
+  console.log('🚀 [Sync] Iniciando sincronización de datos pendientes...');
   
   let success = 0;
   let failed = 0;
@@ -158,11 +163,11 @@ export async function startSync(): Promise<{ success: number; failed: number }> 
   try {
     const queueItems = await db.syncQueue.orderBy('createdAt').toArray();
     
-    console.log(`[Sync] ${queueItems.length} registros pendientes`);
+    console.log(`📋 [Sync] ${queueItems.length} registros pendientes`);
     
     for (const item of queueItems) {
       try {
-        console.log(`[Sync] Sincronizando ${item.action} ${item.entity} ${item.entityId}`);
+        console.log(`📤 [Sync] Sincronizando ${item.action} ${item.entity} ${item.entityId}`);
         
         const token = getToken();
         if (!token) {
@@ -197,7 +202,7 @@ export async function startSync(): Promise<{ success: number; failed: number }> 
             result = await syncDeleteProduct(item.entityId);
             break;
           default:
-            console.log(`[Sync] Acción no soportada: ${item.action}_${item.entity}`);
+            console.log(`⚠️ [Sync] Acción no soportada: ${item.action}_${item.entity}`);
             result = true;
         }
         
@@ -205,14 +210,14 @@ export async function startSync(): Promise<{ success: number; failed: number }> 
           await db.syncQueue.delete(item.id!);
           await markAsSynced(item.entity, item.entityId);
           success++;
-          console.log(`[Sync] Sincronizado: ${item.entityId}`);
+          console.log(`✅ [Sync] Sincronizado: ${item.entityId}`);
         } else {
           failed++;
           throw new Error('Falló la sincronización');
         }
         
       } catch (error) {
-        console.error(`[Sync] Error sincronizando ${item.entityId}:`, error);
+        console.error(`❌ [Sync] Error sincronizando ${item.entityId}:`, error);
         failed++;
         
         await db.syncQueue.update(item.id!, {
@@ -221,15 +226,17 @@ export async function startSync(): Promise<{ success: number; failed: number }> 
       }
     }
     
-    console.log(`[Sync] Sincronización completada: ${success} éxitos, ${failed} fallos`);
+    console.log(`✅ [Sync] Sincronización completada: ${success} éxitos, ${failed} fallos`);
   } catch (error) {
-    console.error('[Sync] Error durante sincronización:', error);
+    console.error('❌ [Sync] Error durante sincronización:', error);
   } finally {
     syncInProgress = false;
   }
   
   return { success, failed };
 }
+
+// ─── Funciones de sincronización específicas ───────
 
 async function syncCreateClient(data: any): Promise<boolean> {
   try {
@@ -284,17 +291,44 @@ async function syncCreateProduct(data: any): Promise<boolean> {
 
 async function syncCreateMaintenance(data: any): Promise<boolean> {
   try {
-    const input: CreateMaintenanceInput = {
+    // Obtener responsibleId del token
+    const token = getToken();
+    let responsibleId = null;
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        responsibleId = payload.userId || null;
+      } catch {
+        responsibleId = null;
+      }
+    }
+
+    if (!responsibleId) {
+      console.error('No se pudo obtener responsibleId');
+      return false;
+    }
+
+    const input = {
       description: data.description,
       maintenanceProducts: data.maintenanceProducts || [],
     };
     
-    if (data.physicalClientId) {
-      await mantenimientosApi.createPhysical({ ...input, physicalClientId: data.physicalClientId });
+    let result;
+    const clientId = data.clientId || data.physicalClientId || data.legalClientId;
+    
+    if (data.clientType === 'fisico' || data.physicalClientId) {
+      result = await mantenimientosApi.createPhysical({
+        ...input,
+        physicalClientId: clientId,
+      });
     } else {
-      await mantenimientosApi.createLegal({ ...input, legalClientId: data.legalClientId });
+      result = await mantenimientosApi.createLegal({
+        ...input,
+        legalClientId: clientId,
+      });
     }
-    return true;
+    
+    return !!result;
   } catch (error) {
     console.error('Error creando mantenimiento:', error);
     return false;
@@ -303,22 +337,27 @@ async function syncCreateMaintenance(data: any): Promise<boolean> {
 
 async function syncCreateInvoice(data: any): Promise<boolean> {
   try {
-    if (data.physicalClientId) {
-      const input: CreatePhysicalInvoiceInput = {
-        physicalClientId: data.physicalClientId,
-        physicalProductItems: data.physicalProductItems || [],
-        serviceProductItems: data.serviceProductItems || [],
-      };
-      await facturasApi.createPhysical(input);
+    const physicalProductItems = data.physicalProductItems || [];
+    const serviceProductItems = data.serviceProductItems || [];
+    
+    let result;
+    const clientId = data.clientId || data.physicalClientId || data.legalClientId;
+    
+    if (data.clientType === 'fisico' || data.physicalClientId) {
+      result = await facturasApi.createPhysical({
+        physicalClientId: clientId,
+        physicalProductItems,
+        serviceProductItems,
+      });
     } else {
-      const input: CreateLegalInvoiceInput = {
-        legalClientId: data.legalClientId,
-        physicalProductItems: data.physicalProductItems || [],
-        serviceProductItems: data.serviceProductItems || [],
-      };
-      await facturasApi.createLegal(input);
+      result = await facturasApi.createLegal({
+        legalClientId: clientId,
+        physicalProductItems,
+        serviceProductItems,
+      });
     }
-    return true;
+    
+    return !!result;
   } catch (error) {
     console.error('Error creando factura:', error);
     return false;
@@ -419,5 +458,5 @@ export async function clearOfflineData(): Promise<void> {
   await db.offlineMaintenances.clear();
   await db.offlineInvoices.clear();
   await db.syncQueue.clear();
-  console.log('[Sync] Datos offline limpiados');
+  console.log('🧹 [Sync] Datos offline limpiados');
 }

@@ -7,7 +7,7 @@ import clientesFisicosRoutes from "./routes/clientesFisicos.js";
 import clientesJuridicosRoutes from "./routes/clientesJuridicos.js";
 import mantenimientosRoutes from "./routes/mantenimientos.js";
 import facturacionRoutes from "./routes/facturacion.js";
-import productosRoutes from "./routes/productos.js";  // ← Agregar
+import productosRoutes from "./routes/productos.js"; 
 import { errorHandler } from "./middleware/errorHandler.js";
 
 const app = express();

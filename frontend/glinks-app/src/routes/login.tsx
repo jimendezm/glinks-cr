@@ -120,21 +120,7 @@ export default function LoginPage() {
                 )}
               </button>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              La contraseña debe tener al menos 12 caracteres
-            </p>
           </div>
-          
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="remember"
-              checked={remember}
-              onCheckedChange={(checked) => setRemember(!!checked)}
-              disabled={loading}
-            />
-            <Label htmlFor="remember" className="text-sm font-normal cursor-pointer">
-              Recordarme
-            </Label>
           </div>
           
           {error && (

@@ -116,9 +116,6 @@ export default function LoginPage() {
               onCheckedChange={(checked) => setRemember(!!checked)}
               disabled={loading}
             />
-            <Label htmlFor="remember" className="text-sm font-normal cursor-pointer">
-              Recordarme
-            </Label>
           </div>
           
           {error && (

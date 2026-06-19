@@ -35,7 +35,7 @@ const emptyForm: CreateProductInput = {
   billable: true,
 };
 
-const productTypes = ["Router", "PoE", "Tubo metálico", "Antena AP", "Cable", "Otro"];
+const productTypes = ["Servicio", "Físico"];
 
 export default function InventarioPage() {
   const [search, setSearch] = useState("");
@@ -129,16 +129,22 @@ export default function InventarioPage() {
       return productosApi.remove(product.id);
     },
     {
-      onSuccess: (_data, product) => {
+      onSuccess: () => {
         refetch();
-        showSuccess(`El producto ${(product as Product).name} ha sido eliminado`, "Producto eliminado");
+        showSuccess("Producto eliminado exitosamente", "Producto eliminado");
       },
       onError: (err, product) => {
-        const p = product as Product;
         if (err.message === "PRODUCT_HAS_INVOICES") {
-          showCannotDelete(p.name, `Este producto aparece en ${getInvoiceCountForProduct(p.id)} factura(s).`);
+          const count = getInvoiceCountForProduct(product?.id || '');
+          showCannotDelete(
+            product?.name || 'Producto',
+            `Este producto aparece en ${count} factura(s).`
+          );
         } else if (err.message === "PRODUCT_HAS_MAINTENANCES") {
-          showCannotDelete(p.name, "Este producto ha sido utilizado en mantenimientos.");
+          showCannotDelete(
+            product?.name || 'Producto',
+            "Este producto ha sido utilizado en mantenimientos."
+          );
         } else {
           showError(err.message, "Error al eliminar");
         }

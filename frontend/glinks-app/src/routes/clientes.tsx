@@ -319,20 +319,25 @@ export default function ClientesPage() {
       return legalClientsApi.remove(c.id);
     },
     {
-      onSuccess: (_data, client) => {
+      onSuccess: () => {
         refetchClients();
         refetchInvoices();
-        showSuccess(`El cliente ${getClientDisplayName(client as UnifiedClient)} ha sido eliminado`, "Cliente eliminado");
+        showSuccess("Cliente eliminado exitosamente", "Cliente eliminado");
       },
       onError: (err, client) => {
-        const c = client as UnifiedClient;
-        if (err.message.includes("foreign key") || err.message.includes("constraint")) {
-          showCannotDelete(
-            getClientDisplayName(c),
-            `Este cliente tiene ${getInvoiceCount(c)} factura(s) asociada(s).`
-          );
+        // Asegurar que client existe antes de acceder a sus propiedades
+        if (client && typeof client === 'object' && 'tipo' in client) {
+          const c = client as UnifiedClient;
+          if (err.message.includes("foreign key") || err.message.includes("constraint")) {
+            showCannotDelete(
+              getClientDisplayName(c),
+              `Este cliente tiene ${getInvoiceCount(c)} factura(s) asociada(s).`
+            );
+          } else {
+            showError(err.message, "Error al eliminar");
+          }
         } else {
-          showError(err.message, "Error al eliminar");
+          showError(err.message, "Error al eliminar el cliente");
         }
       },
     }

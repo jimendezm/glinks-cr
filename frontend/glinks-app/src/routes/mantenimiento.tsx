@@ -57,7 +57,9 @@ export default function MantenimientoPage() {
     () => productosApi.list(1, 200),
     []
   );
-  const products = productsPage?.data ?? [];
+  
+  const allProducts = productsPage?.data ?? [];
+  const physicalProducts = allProducts.filter((p) => p.billable === true);
 
   const { data: mantData, loading: loadingMant, refetch } = useFetch(
     () => fetchAllMaintenances(1, 200),
@@ -96,7 +98,7 @@ export default function MantenimientoPage() {
       return;
     }
 
-    const product = products.find((p) => p.id === selectedProductId);
+    const product = physicalProducts.find((p) => p.id === selectedProductId);
     if (!product) return;
 
     const existing = form.products.find((p) => p.productId === selectedProductId);
@@ -298,7 +300,7 @@ export default function MantenimientoPage() {
                   <Select value={selectedProductId} onValueChange={setSelectedProductId}>
                     <SelectTrigger><SelectValue placeholder="Seleccione producto" /></SelectTrigger>
                     <SelectContent>
-                      {products.map((p) => (
+                      {physicalProducts.map((p) => (
                         <SelectItem key={p.id} value={p.id}>
                           {p.name} - ₡{p.unit_price}
                         </SelectItem>

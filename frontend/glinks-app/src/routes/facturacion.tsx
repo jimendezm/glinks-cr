@@ -20,9 +20,9 @@ import { productosApi } from "@/services/api/productos";
 import { facturasApi } from "@/services/api/facturas";
 import type { Invoice, Product } from "@/models";
 import { Plus, Eye, Loader2 } from "lucide-react";
-import { toast } from "sonner";
 import { addDays } from "date-fns";
 import { saveOfflineRecord, checkConnection } from "@/services/api/syncService";
+import { showSuccess, showError, showToast } from "@/lib/swal";
 
 interface PhysicalCartItem {
   productId: string;
@@ -98,8 +98,8 @@ export default function FacturacionPage() {
   };
 
   const addPhysicalItem = () => {
-    if (!selectedPhysicalProductId) { toast.error("Seleccione un producto"); return; }
-    if (physicalAmount < 1) { toast.error("La cantidad debe ser mayor a 0"); return; }
+    if (!selectedPhysicalProductId) { showToast("Seleccione un producto", "error"); return; }
+    if (physicalAmount < 1) { showToast("La cantidad debe ser mayor a 0", "error"); return; }
 
     const product = physicalProducts.find((p) => p.id === selectedPhysicalProductId);
     if (!product) return;
@@ -122,13 +122,13 @@ export default function FacturacionPage() {
   };
 
   const addServiceItem = () => {
-    if (!selectedServiceProductId) { toast.error("Seleccione un servicio"); return; }
+    if (!selectedServiceProductId) { showToast("Seleccione un servicio", "error"); return; }
 
     const product = serviceProducts.find((p) => p.id === selectedServiceProductId);
     if (!product) return;
 
     if (serviceItems.find((i) => i.productId === selectedServiceProductId)) {
-      toast.error("Este servicio ya está agregado");
+      showToast("Este servicio ya está agregado", "error");
       return;
     }
 
@@ -180,18 +180,19 @@ export default function FacturacionPage() {
     {
       onSuccess: () => {
         refetch();
-        toast.success("Factura creada exitosamente");
+        showSuccess("Factura creada exitosamente", "Factura registrada");
         setOpen(false);
         resetForm();
       },
-      onError: (err) => toast.error(err.message),
+      onError: (err) => showError(err.message, "Error al crear la factura"),
     }
   );
 
   const submit = () => {
-    if (!clientId) { toast.error("Seleccione un cliente"); return; }
+    if (!clientId) { showToast("Seleccione un cliente", "error"); return; }
     if (physicalItems.length === 0 && serviceItems.length === 0) {
-      toast.error("Agregue al menos un producto o servicio"); return;
+      showToast("Agregue al menos un producto o servicio", "error");
+      return;
     }
     createMutation.mutate(undefined as any);
   };
